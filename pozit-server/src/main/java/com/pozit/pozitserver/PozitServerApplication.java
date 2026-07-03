@@ -1,4 +1,4 @@
-package com.example.pozitserver;
+package com.pozit.pozitserver;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
