@@ -1,7 +1,16 @@
 services:
+  certbot:
+    image: certbot/certbot:latest
+    container_name: pozit-certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    networks:
+      - pozit-network
+
   postgres:
     image: postgres:16
-    container_name: pozit_container
+    container_name: pozit-postgresql
     restart: always
     ports:
       - "5432:5432"
@@ -11,6 +20,19 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U ${POSTRES_USER} -d ${POSTRES_DB}"]
+      # 10초마다 검사
+      interval: 10s
+      # 검사 명령이 5초 넘으면 실패
+      timeout: 5s
+      # 20번 연속 실패하면 unhealthy 처리
+      retries: 20
 
 volumes:
-  postgres_data:
+  redis-data:
+  postgresql-data:
+
+networks:
+  pozit-network:
+    driver: bridge
