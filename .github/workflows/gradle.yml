@@ -2,7 +2,7 @@ name: CI/CD
 
 on:
   push:
-    branches: ["feat/settings"]
+    branches: ["develop","main"]
   workflow_dispatch:
 
 jobs:
@@ -65,7 +65,7 @@ jobs:
 
   # main 브랜치에서만 배포(CD) 수행
   cd:
-    if: github.ref == 'refs/heads/feat/settings'
+    if: github.ref == 'refs/heads/develop'
     needs: ci
     runs-on: ubuntu-latest
 
