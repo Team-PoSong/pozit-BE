@@ -17,9 +17,15 @@ docker compose -f docker-compose.yml pull
 docker compose -f docker-compose.yml up -d
 
 # nginx 설정 검증 후 reload
-docker exec pozit-nginx nginx -t && docker exec pozit-nginx nginx -s reload || true
+echo "[INFO] Validating Nginx configuration"
+if ! docker exec pozit-nginx nginx -t; then
+  echo "[ERROR] Nginx configuration validation failed"
+  docker logs --tail=100 pozit-nginx
+  exit 1
+fi
 
 # dangling 이미지 정리
 docker image prune -f
 
 echo "Deployment completed."
+
