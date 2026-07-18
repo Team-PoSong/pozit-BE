@@ -1,4 +1,46 @@
 services:
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: pozit-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    networks:
+      - pozit-network
+
+  server:
+    image: "${DOCKER_CONTAINER_REGISTRY}/pozit:${GITHUB_SHA}"
+    container_name: pozit-server
+    environment:
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: "-Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false"
+
+      POSTGRES_DATABASE: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+      JWT_SECRET: ${JWT_SECRET}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      SENTRY_DSN: ${SENTRY_DSN}
+      # DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL}
+
+      AWS_REGION: ap-northeast-2
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pozit-network
+    expose:
+      - "8080"
+
+
   certbot:
     image: certbot/certbot:latest
     container_name: pozit-certbot
@@ -12,16 +54,14 @@ services:
     image: postgres:16
     container_name: pozit-postgresql
     restart: always
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL","pg_isready -U ${POSTRES_USER} -d ${POSTRES_DB}"]
+      test: ["CMD-SHELL","pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       # 10초마다 검사
       interval: 10s
       # 검사 명령이 5초 넘으면 실패
@@ -31,7 +71,7 @@ services:
 
 volumes:
   redis-data:
-  postgresql-data:
+  postgres-data:
 
 networks:
   pozit-network:
