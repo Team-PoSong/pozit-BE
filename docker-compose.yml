@@ -12,6 +12,9 @@ services:
       - ./certbot/conf:/etc/letsencrypt
     networks:
       - pozit-network
+    depends_on:
+      - server
+
 
   server:
     image: "${DOCKER_CONTAINER_REGISTRY}/pozit:${GITHUB_SHA}"
@@ -40,16 +43,6 @@ services:
     expose:
       - "8080"
 
-
-  certbot:
-    image: certbot/certbot:latest
-    container_name: pozit-certbot
-    volumes:
-      - ./certbot/www:/var/www/certbot
-      - ./certbot/conf:/etc/letsencrypt
-    networks:
-      - pozit-network
-
   postgres:
     image: postgres:16
     container_name: pozit-postgresql
@@ -68,6 +61,19 @@ services:
       timeout: 5s
       # 20번 연속 실패하면 unhealthy 처리
       retries: 20
+    networks:
+      - pozit-network
+
+
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: pozit-certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    networks:
+      - pozit-network
 
 volumes:
   redis-data:
