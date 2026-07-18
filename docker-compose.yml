@@ -1,84 +1,116 @@
-services:
+  default.conf
+    
+    # ───────────────────────────────────────────────
+    # 1) 80포트(http)로 들어오는 모든 요청을 https로 리다이렉션
+    server {
+    listen 80;
+    server_name api.pozit.kr;
+    return 301 https://pozit.kr$request_uri;
+  }
+    
+    # ───────────────────────────────────────────────
+    # 2) https://로 들어오는 요청을 서비스 중인 포트로 연결
+    server {
+    listen 443 ssl http2;
+    server_name pozit.kr;
 
-  nginx:
-    image: nginx:1.25-alpine
-    container_name: pozit-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./certbot/www:/var/www/certbot
-      - ./certbot/conf:/etc/letsencrypt
-    networks:
-      - pozit-network
-    depends_on:
-      - server
+    # ssl 인증서 적용
+    ssl_certificate /etc/letsencrypt/live/api.pozit.kr/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.pozit.kr/privkey.pem;
 
+    location / { # location 이후 특정 Url을 처리하는 방법을 정의 (여기서는 / -> 즉, 모든 request)
+    proxy_pass https://localhost:9001; # Request에 대해 어디로 리다이렉트하는지 작성. 8443 -> 자신의 springboot app 이사용하는 포트
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    }
+  }
+    
+    # ───────────────────────────────────────────────
+    # 3) 도메인 이름이 다르면 404에러 처리
+    server {
+    if ($host = pozit.kr) {
+    return 301 https://$host$request_uri;
+    } # managed by Certbot
+    
+    listen 80;
+    server_name pozit.kr;
+    return 404; # managed by Certbot
+  }
+    # ───────────────────────────────────────────────
+    # 1) 80포트(http)로 들어오는 모든 요청을 https로 리다이렉션
+    server {
+    listen 80;
+    server_name api.pozit.kr;
+    return 301 https://pozit.kr$request_uri;
+  }
+    
+    # ───────────────────────────────────────────────
+    # 2) https://로 들어오는 요청을 서비스 중인 포트로 연결
+    server {
+    listen 443 ssl http2;
+    server_name pozit.kr;
 
-  server:
-    image: "${DOCKER_CONTAINER_REGISTRY}/pozit:${GITHUB_SHA}"
-    container_name: pozit-server
-    environment:
-      TZ: Asia/Seoul
-      JAVA_TOOL_OPTIONS: "-Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false"
+    # ssl 인증서 적용
+    ssl_certificate /etc/letsencrypt/live/api.pozit.kr/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.pozit.kr/privkey.pem;
 
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    location / { # location 이후 특정 Url을 처리하는 방법을 정의 (여기서는 / -> 즉, 모든 request)
+    proxy_pass https://localhost:9001; # Request에 대해 어디로 리다이렉트하는지 작성. 8443 -> 자신의 springboot app 이사용하는 포트
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    }
+  }
+    
+    # ───────────────────────────────────────────────
+    # 3) 도메인 이름이 다르면 404에러 처리
+    server {
+    if ($host = pozit.kr) {
+    return 301 https://$host$request_uri;
+    } # managed by Certbot
+    
+    listen 80;
+    server_name pozit.kr;
+    return 404; # managed by Certbot
+  }
+    # ───────────────────────────────────────────────
+    # 1) 80포트(http)로 들어오는 모든 요청을 https로 리다이렉션
+    server {
+    listen 80;
+    server_name api.pozit.kr;
+    return 301 https://pozit.kr$request_uri;
+  }
+    
+    # ───────────────────────────────────────────────
+    # 2) https://로 들어오는 요청을 서비스 중인 포트로 연결
+    server {
+    listen 443 ssl http2;
+    server_name pozit.kr;
 
-      JWT_SECRET: ${JWT_SECRET}
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
-      SENTRY_DSN: ${SENTRY_DSN}
-      # DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL}
+    # ssl 인증서 적용
+    ssl_certificate /etc/letsencrypt/live/api.pozit.kr/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.pozit.kr/privkey.pem;
 
-      AWS_REGION: ap-northeast-2
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - pozit-network
-    expose:
-      - "8080"
-
-  postgres:
-    image: postgres:16
-    container_name: pozit-postgresql
-    restart: always
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL","pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      # 10초마다 검사
-      interval: 10s
-      # 검사 명령이 5초 넘으면 실패
-      timeout: 5s
-      # 20번 연속 실패하면 unhealthy 처리
-      retries: 20
-    networks:
-      - pozit-network
-
-
-
-  certbot:
-    image: certbot/certbot:latest
-    container_name: pozit-certbot
-    volumes:
-      - ./certbot/www:/var/www/certbot
-      - ./certbot/conf:/etc/letsencrypt
-    networks:
-      - pozit-network
-
-volumes:
-  redis-data:
-  postgres-data:
-
-networks:
-  pozit-network:
-    driver: bridge
+    location / { # location 이후 특정 Url을 처리하는 방법을 정의 (여기서는 / -> 즉, 모든 request)
+    proxy_pass https://localhost:9001; # Request에 대해 어디로 리다이렉트하는지 작성. 8443 -> 자신의 springboot app 이사용하는 포트
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    }
+  }
+    
+    # ───────────────────────────────────────────────
+    # 3) 도메인 이름이 다르면 404에러 처리
+    server {
+    if ($host = pozit.kr) {
+    return 301 https://$host$request_uri;
+    } # managed by Certbot
+    
+    listen 80;
+    server_name pozit.kr;
+    return 404; # managed by Certbot
+  }
