@@ -17,7 +17,7 @@ docker compose -f docker-compose.yml pull
 docker compose -f docker-compose.yml up -d
 
 # nginx 설정 검증 후 reload
-docker exec grad02-nginx nginx -t && docker exec grad02-nginx nginx -s reload || true
+docker exec pozit-nginx nginx -t && docker exec pozit-nginx nginx -s reload || true
 
 # dangling 이미지 정리
 docker image prune -f

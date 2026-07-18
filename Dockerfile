@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM eclipse-temurin:17-jre
 LABEL authors="minseo"
 WORKDIR /app
 COPY ./build/libs/*.jar /app/app.jar
