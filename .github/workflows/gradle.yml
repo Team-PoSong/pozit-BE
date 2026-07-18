@@ -65,7 +65,7 @@ jobs:
 
   # main 브랜치에서만 배포(CD) 수행
   cd:
-    if: github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/main'
     needs: ci
     runs-on: ubuntu-latest
 
