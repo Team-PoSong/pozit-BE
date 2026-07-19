@@ -1,5 +1,6 @@
 package com.pozit.pozitserver.global.auth.annotation;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.lang.annotation.ElementType;
@@ -9,8 +10,6 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.RUNTIME)
-//@AuthenticationPrincipal(
-//        expression = "T(java.lang.Long).valueOf(subject)"
-//)
+@Parameter(hidden = true)
 public @interface CurrentUser {
 }
