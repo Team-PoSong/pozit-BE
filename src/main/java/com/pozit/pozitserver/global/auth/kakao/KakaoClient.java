@@ -1,0 +1,45 @@
+package com.pozit.pozitserver.global.auth.kakao;
+
+import com.pozit.pozitserver.user.dto.response.KakaoTokenResponse;
+import com.pozit.pozitserver.user.dto.response.KakaoUserResponse;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.reactive.function.client.WebClient;
+
+@Component
+@RequiredArgsConstructor
+//카카오 서버와 직접 통신하는 외부 API 클라이언트
+public class KakaoClient {
+
+    private final WebClient.Builder webClientBuilder;
+    private final KakaoProperties kakaoProperties;
+
+    public KakaoTokenResponse requestAccessToken(String authorizationCode) {
+        return webClientBuilder.build()
+                .post()
+                .uri("https://kauth.kakao.com/oauth/token")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(BodyInserters
+                        .fromFormData("grant_type", "authorization_code")
+                        .with("client_id", kakaoProperties.clientId())
+                        .with("redirect_uri", kakaoProperties.redirectUri())
+                        .with("code", authorizationCode)
+                        .with("client_secret", kakaoProperties.clientSecret()))
+                .retrieve()
+                .bodyToMono(KakaoTokenResponse.class)
+                .block();
+    }
+
+    public KakaoUserResponse requestUserInfo(String kakaoAccessToken) {
+        return webClientBuilder.build()
+                .get()
+                .uri("https://kapi.kakao.com/v2/user/me")
+                .headers(headers ->
+                        headers.setBearerAuth(kakaoAccessToken))
+                .retrieve()
+                .bodyToMono(KakaoUserResponse.class)
+                .block();
+    }
+}
