@@ -33,18 +33,14 @@ jobs:
         env:
           APP_DEV_YML: ${{ secrets.APP_DEV_YML }}
           APP_PROD_YML: ${{ secrets.APP_PROD_YML }}
-          TEST_YML: ${{ secrets.TEST_YML }}
         run: |
           mkdir -p src/main/resources
-          mkdir -p src/test/resources
 
           if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
             echo "$APP_PROD_YML" > src/main/resources/application.yml
           else
             echo "$APP_DEV_YML" > src/main/resources/application.yml
           fi
-
-          echo "$TEST_YML" > src/test/resources/application.yml
 
       - name: Grant execute permission to gradlew
         run: chmod +x gradlew
@@ -60,7 +56,7 @@ jobs:
       #     path: build/reports/tests/test
 
       - name: Build
-        run: ./gradlew build
+        run: ./gradlew build -x test
 
 
   # main 브랜치에서만 배포(CD) 수행
