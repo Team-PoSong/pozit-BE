@@ -53,10 +53,6 @@ public class CurrentUserArgumentResolver
                                 "사용자를 찾을 수 없습니다. id=" + userId
                         )
                 );
-
-        System.out.println("resolver userId = " + user.getId());
-        System.out.println("resolver nickname = " + user.getNickname());
-
         return user;
     }
 }

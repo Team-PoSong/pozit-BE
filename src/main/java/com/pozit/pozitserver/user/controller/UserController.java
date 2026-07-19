@@ -20,8 +20,6 @@ public class UserController {
     @GetMapping("/me")
     @Operation(summary = "내 정보 조회", description = "사용자 닉네임, 연동된 소셜 계정 정보를 조회합니다.")
     public SuccessResponse<String> getMyInfo(@CurrentUser User user) {
-        System.out.println("user id = " + user.getId());
-        System.out.println("nickname = " + user.getNickname());
         return SuccessResponse.ok(user.getNickname());
     }
 
