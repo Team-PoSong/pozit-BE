@@ -36,13 +36,11 @@ public class JwtTokenProvider {
 
     public String createAccessToken(User user) {
 
-        String accessToken= createToken(
+        return createToken(
                 user,
                 TokenType.ACCESS,
                 jwtProperties.accessTokenExpiration()
         );
-        log.info("createAccessToken:{}",accessToken);
-        return accessToken;
     }
 
     public String createRefreshToken(User user) {

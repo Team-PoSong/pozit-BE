@@ -27,11 +27,9 @@ public class AuthService {
     public LoginTokenResponse loginWithKakao(String authorizationCode) {
         KakaoTokenResponse kakaoToken =
                 kakaoClient.requestAccessToken(authorizationCode);
-        log.info("kakaoToken:{}",kakaoToken);
 
         KakaoUserResponse kakaoUser =
                 kakaoClient.requestUserInfo(kakaoToken.accessToken());
-        log.info("kakaoUser:{}",kakaoUser);
 
         User user = userRepository
                 .findByProviderAndSocialId(
@@ -43,7 +41,6 @@ public class AuthService {
 //                            kakaoUser.getEmail(),
                             kakaoUser.getNickname()
                     );
-                    log.info("existingUser:{}",existingUser);
                     return existingUser;
                 })
                 .orElseGet(() -> userRepository.save(
@@ -56,17 +53,8 @@ public class AuthService {
                                 .role(Role.USER)
                                 .build()
                 ));
-        log.info(
-                "userId={}, nickname={}, role={}, provider={}, socialId={}",
-                user.getId(),
-                user.getNickname(),
-                user.getRole(),
-                user.getProvider(),
-                user.getSocialId()
-        );
-        log.info("JWT 생성 직전");
+
         String accessToken=jwtTokenProvider.createAccessToken(user);
-        log.info("JWT 생성 완료");
         return LoginTokenResponse.of(
                 accessToken,
                 jwtTokenProvider.getAccessTokenExpirationSeconds(),
