@@ -9,6 +9,21 @@ jobs:
   ci:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: pozit_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test1234
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U test -d pozit_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,30 +48,34 @@ jobs:
         env:
           APP_DEV_YML: ${{ secrets.APP_DEV_YML }}
           APP_PROD_YML: ${{ secrets.APP_PROD_YML }}
+          TEST_YML: ${{ secrets.TEST_YML }}
         run: |
           mkdir -p src/main/resources
-
+          mkdir -p src/test/resources
+      
           if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
-            echo "$APP_PROD_YML" > src/main/resources/application.yml
+            printf '%s\n' "$APP_PROD_YML" > src/main/resources/application.yml
           else
-            echo "$APP_DEV_YML" > src/main/resources/application.yml
+            printf '%s\n' "$APP_DEV_YML" > src/main/resources/application.yml
           fi
+      
+          printf '%s\n' "$TEST_YML" > src/test/resources/application.yml
 
       - name: Grant execute permission to gradlew
         run: chmod +x gradlew
 
-      # - name: Run tests
-      #   run: ./gradlew test
+      - name: Run tests
+        run: ./gradlew test
 
-      # - name: Upload test report on failure
-      #   if: failure()
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: test-report
-      #     path: build/reports/tests/test
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: build/reports/tests/test
 
       - name: Build
-        run: ./gradlew build -x test
+        run: ./gradlew build
 
 
   # main 브랜치에서만 배포(CD) 수행
