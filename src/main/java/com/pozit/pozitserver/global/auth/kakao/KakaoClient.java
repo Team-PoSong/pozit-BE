@@ -1,5 +1,7 @@
 package com.pozit.pozitserver.global.auth.kakao;
 
+import com.pozit.pozitserver.global.exception.BusinessException;
+import com.pozit.pozitserver.global.exception.ErrorCode;
 import com.pozit.pozitserver.user.dto.response.KakaoTokenResponse;
 import com.pozit.pozitserver.user.dto.response.KakaoUserResponse;
 import lombok.RequiredArgsConstructor;
@@ -7,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 @Component
 @RequiredArgsConstructor
@@ -33,13 +36,27 @@ public class KakaoClient {
     }
 
     public KakaoUserResponse requestUserInfo(String kakaoAccessToken) {
-        return webClientBuilder.build()
-                .get()
-                .uri("https://kapi.kakao.com/v2/user/me")
-                .headers(headers ->
-                        headers.setBearerAuth(kakaoAccessToken))
-                .retrieve()
-                .bodyToMono(KakaoUserResponse.class)
-                .block();
+        try {
+            return webClientBuilder.build()
+                    .get()
+                    .uri("https://kapi.kakao.com/v2/user/me")
+                    .headers(headers ->
+                            headers.setBearerAuth(normalizeAccessToken(kakaoAccessToken)))
+                    .retrieve()
+                    .bodyToMono(KakaoUserResponse.class)
+                    .block();
+        } catch (WebClientResponseException.Unauthorized e) {
+            throw new BusinessException(ErrorCode.KAKAO_INVALID_ACCESS_TOKEN);
+        }
+    }
+
+    private String normalizeAccessToken(String accessToken) {
+        String trimmedAccessToken = accessToken.trim();
+
+        if (trimmedAccessToken.regionMatches(true, 0, "Bearer ", 0, 7)) {
+            return trimmedAccessToken.substring(7).trim();
+        }
+
+        return trimmedAccessToken;
     }
 }

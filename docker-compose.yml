@@ -38,6 +38,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - pozit-network
     expose:
@@ -64,8 +66,6 @@ services:
     networks:
       - pozit-network
 
-
-
   certbot:
     image: certbot/certbot:latest
     container_name: pozit-certbot
@@ -74,6 +74,21 @@ services:
       - ./certbot/conf:/etc/letsencrypt
     networks:
       - pozit-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: pozit-redis
+    restart: always
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD","redis-cli","ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - pozit-network
+
 
 volumes:
   redis-data:

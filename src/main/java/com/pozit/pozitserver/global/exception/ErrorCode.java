@@ -11,7 +11,10 @@ public enum ErrorCode {
     COMMON401(HttpStatus.UNAUTHORIZED, "COMMON401", "인증되지 않은 요청입니다."),
     COMMON403(HttpStatus.FORBIDDEN, "COMMON403", "접근 권한이 없습니다."),
     COMMON404(HttpStatus.NOT_FOUND, "COMMON404", "요청한 리소스를 찾을 수 없습니다."),
-    COMMON500(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON500", "서버 내부 오류가 발생했습니다.");
+    COMMON500(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON500", "서버 내부 오류가 발생했습니다."),
+
+    // Auth
+    KAKAO_INVALID_ACCESS_TOKEN(HttpStatus.UNAUTHORIZED, "KAKAO401", "유효하지 않은 카카오 액세스 토큰입니다.");
 
 
     private final HttpStatus httpStatus;
