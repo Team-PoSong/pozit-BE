@@ -28,8 +28,12 @@ public class AuthService {
         KakaoTokenResponse kakaoToken =
                 kakaoClient.requestAccessToken(authorizationCode);
 
+        return loginWithKakaoAccessToken(kakaoToken.accessToken());
+    }
+
+    public LoginTokenResponse loginWithKakaoAccessToken(String kakaoAccessToken) {
         KakaoUserResponse kakaoUser =
-                kakaoClient.requestUserInfo(kakaoToken.accessToken());
+                kakaoClient.requestUserInfo(kakaoAccessToken);
 
         User user = userRepository
                 .findByProviderAndSocialId(
