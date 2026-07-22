@@ -16,6 +16,7 @@ import lombok.NoArgsConstructor;
         }
 )
 @Getter
+@Table(name = "regions")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Region {
 
