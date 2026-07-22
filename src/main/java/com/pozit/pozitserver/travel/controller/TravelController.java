@@ -32,6 +32,14 @@ public class TravelController {
 
     private final TravelService travelService;
 
+    @GetMapping("/destinations")
+    @Operation(summary="여행 정보 입력 후 생성")
+    public SuccessResponse<List<DestinationResponse>> searchDestination(
+            @RequestParam String keyword
+    ){
+        return SuccessResponse.ok(travelService.searchDestination(keyword));
+    }
+
     @GetMapping
     @Operation(summary = "여행 목록 조회", description = "미완료(예정/진행중) 및 완료된 지난 여행 목록을 구분하여 조회합니다.")
     @ApiResponses({

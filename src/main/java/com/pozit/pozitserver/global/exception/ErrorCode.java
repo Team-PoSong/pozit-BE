@@ -19,8 +19,9 @@ public enum ErrorCode {
     // Travel
     INVALID_TRAVEL_PERIOD(HttpStatus.BAD_REQUEST, "TRAVEL400_1", "종료일은 시작일보다 빠를 수 없습니다."),
     TRAVEL_NOT_COMPLETED(HttpStatus.BAD_REQUEST, "TRAVEL400_2", "완료된 여행만 공개 설정을 변경할 수 있습니다."),
-    COMPLETED_TRAVEL_DATE_NOT_EDITABLE(HttpStatus.BAD_REQUEST, "TRAVEL400_3", "완료된 여행은 날짜를 수정할 수 없습니다.");
+    COMPLETED_TRAVEL_DATE_NOT_EDITABLE(HttpStatus.BAD_REQUEST, "TRAVEL400_3", "완료된 여행은 날짜를 수정할 수 없습니다."),
 
+    INVALID_REGION(HttpStatus.BAD_REQUEST,"TRAVEL404_1","존재하지 않는 여행지입니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

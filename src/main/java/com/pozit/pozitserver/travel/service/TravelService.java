@@ -19,12 +19,15 @@ import com.pozit.pozitserver.travel.domain.TravelMemberRole;
 import com.pozit.pozitserver.travel.domain.TravelStatus;
 import com.pozit.pozitserver.travel.dto.request.TravelUpdateRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelVisibilityRequest;
+import com.pozit.pozitserver.travel.dto.response.DestinationResponse;
 import com.pozit.pozitserver.travel.dto.response.TravelDetailResponse;
 import com.pozit.pozitserver.travel.dto.response.TravelListResponse;
 import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
 import com.pozit.pozitserver.user.domain.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +47,8 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class TravelService {
 
+    private static final int SEARCH_LIMIT = 10;
+
     private final TravelRepository travelRepository;
     private final TravelMemberRepository travelMemberRepository;
     private final TravelTagRepository travelTagRepository;
@@ -51,6 +56,7 @@ public class TravelService {
     private final CourseRepository courseRepository;
     private final CourseSpotRepository courseSpotRepository;
     private final PozingRepository pozingRepository;
+
 
     /**
      * 여행 목록 조회
