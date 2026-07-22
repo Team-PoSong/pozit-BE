@@ -9,7 +9,13 @@ import lombok.NoArgsConstructor;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Table(name = "course_spots")
+@Table(
+        name = "course_spots",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_course_spot_order", columnNames = {"course_id", "order_index"}),
+                @UniqueConstraint(name = "uk_course_tourist_spot", columnNames = {"course_id", "tourist_spot_id"})
+        }
+)
 public class CourseSpot {
 
     @Id
