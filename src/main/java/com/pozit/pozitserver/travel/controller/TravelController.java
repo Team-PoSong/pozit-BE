@@ -1,13 +1,22 @@
 package com.pozit.pozitserver.travel.controller;
 
+import com.pozit.pozitserver.global.auth.annotation.CurrentUser;
+import com.pozit.pozitserver.global.response.ErrorResponse;
 import com.pozit.pozitserver.global.response.SuccessResponse;
 import com.pozit.pozitserver.travel.dto.request.TravelUpdateRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelVisibilityRequest;
 import com.pozit.pozitserver.travel.dto.response.TravelDetailResponse;
 import com.pozit.pozitserver.travel.dto.response.TravelListResponse;
 import com.pozit.pozitserver.travel.dto.response.PresignedUrlResponse;
+import com.pozit.pozitserver.travel.service.TravelService;
+import com.pozit.pozitserver.user.domain.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -20,17 +29,84 @@ import java.util.List;
 @Tag(name = "Travel API")
 public class TravelController {
 
+    private final TravelService travelService;
+
     @GetMapping
     @Operation(summary = "여행 목록 조회", description = "미완료(예정/진행중) 및 완료된 지난 여행 목록을 구분하여 조회합니다.")
-    public SuccessResponse<List<TravelListResponse>> getTravels() {
-        return SuccessResponse.ok(null);
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "인증되지 않은 요청",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON401",
+                                      "message": "인증되지 않은 요청입니다."
+                                    }
+                                    """)
+                    )
+            )
+    })
+    public SuccessResponse<List<TravelListResponse>> getTravels(
+            @CurrentUser User currentUser,
+            @Parameter(description = "완료 여부 (true: 완료, false: 미완료)") @RequestParam(defaultValue = "false") boolean isDone) {
+        return SuccessResponse.ok(travelService.getTravels(currentUser, isDone));
     }
 
     @GetMapping("/{travelId}")
     @Operation(summary = "여행 상세 조회", description = "선택한 여행의 일정, 장소 리스트, 타임랩스, 참여 멤버, 진행률을 조회합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "인증되지 않은 요청",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON401",
+                                      "message": "인증되지 않은 요청입니다."
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "해당 여행의 멤버가 아니어서 접근 권한이 없음",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON403",
+                                      "message": "접근 권한이 없습니다."
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "존재하지 않는 여행",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON404",
+                                      "message": "요청한 리소스를 찾을 수 없습니다."
+                                    }
+                                    """)
+                    )
+            )
+    })
     public SuccessResponse<TravelDetailResponse> getTravelDetail(
+            @CurrentUser User currentUser,
             @Parameter(description = "여행 ID") @PathVariable Long travelId) {
-        return SuccessResponse.ok(null);
+        return SuccessResponse.ok(travelService.getTravelDetail(currentUser, travelId));
     }
 
     @PatchMapping("/{travelId}")
