@@ -32,9 +32,9 @@ public class TravelController {
 
     private final TravelService travelService;
 
-    @GetMapping("/destinations")
-    @Operation(summary="여행 정보 입력 후 생성")
-    public SuccessResponse<List<DestinationResponse>> searchDestination(
+    @PostMapping("")
+    @Operation(summary="여행 생성")
+    public SuccessResponse<List<>> searchDestination(
             @RequestParam String keyword
     ){
         return SuccessResponse.ok(travelService.searchDestination(keyword));
