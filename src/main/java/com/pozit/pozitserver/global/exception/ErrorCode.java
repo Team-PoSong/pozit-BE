@@ -17,7 +17,9 @@ public enum ErrorCode {
     KAKAO_INVALID_ACCESS_TOKEN(HttpStatus.UNAUTHORIZED, "KAKAO401", "유효하지 않은 카카오 액세스 토큰입니다."),
 
     // Travel
-    TRAVEL_INVALID_DATE_RANGE(HttpStatus.BAD_REQUEST, "TRAVEL400", "종료일은 시작일보다 빠를 수 없습니다.");
+    INVALID_TRAVEL_PERIOD(HttpStatus.BAD_REQUEST, "TRAVEL400_1", "종료일은 시작일보다 빠를 수 없습니다."),
+    TRAVEL_NOT_COMPLETED(HttpStatus.BAD_REQUEST, "TRAVEL400_2", "완료된 여행만 공개 설정을 변경할 수 있습니다."),
+    COMPLETED_TRAVEL_DATE_NOT_EDITABLE(HttpStatus.BAD_REQUEST, "TRAVEL400_3", "완료된 여행은 날짜를 수정할 수 없습니다.");
 
 
     private final HttpStatus httpStatus;

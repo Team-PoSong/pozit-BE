@@ -95,7 +95,7 @@ public class Travel {
 
     private void validateDateRange(LocalDate startDate, LocalDate endDate) {
         if (endDate.isBefore(startDate)) {
-            throw new BusinessException(ErrorCode.TRAVEL_INVALID_DATE_RANGE);
+            throw new BusinessException(ErrorCode.INVALID_TRAVEL_PERIOD);
         }
     }
 

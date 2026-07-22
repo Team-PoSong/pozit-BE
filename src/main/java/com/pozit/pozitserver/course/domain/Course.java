@@ -35,4 +35,8 @@ public class Course {
         this.dayNumber = dayNumber;
         this.date = date;
     }
+
+    public void updateDate(LocalDate date) {
+        this.date = date;
+    }
 }
