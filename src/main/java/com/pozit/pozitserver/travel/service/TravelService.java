@@ -9,12 +9,16 @@ import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
 import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
+import com.pozit.pozitserver.tag.domain.Tag;
 import com.pozit.pozitserver.tag.domain.TravelTag;
+import com.pozit.pozitserver.tag.repository.TagRepository;
 import com.pozit.pozitserver.tag.repository.TravelTagRepository;
 import com.pozit.pozitserver.travel.domain.Travel;
 import com.pozit.pozitserver.travel.domain.TravelMember;
 import com.pozit.pozitserver.travel.domain.TravelMemberRole;
 import com.pozit.pozitserver.travel.domain.TravelStatus;
+import com.pozit.pozitserver.travel.dto.request.TravelUpdateRequest;
+import com.pozit.pozitserver.travel.dto.request.TravelVisibilityRequest;
 import com.pozit.pozitserver.travel.dto.response.TravelDetailResponse;
 import com.pozit.pozitserver.travel.dto.response.TravelListResponse;
 import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
@@ -24,11 +28,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,6 +47,7 @@ public class TravelService {
     private final TravelRepository travelRepository;
     private final TravelMemberRepository travelMemberRepository;
     private final TravelTagRepository travelTagRepository;
+    private final TagRepository tagRepository;
     private final CourseRepository courseRepository;
     private final CourseSpotRepository courseSpotRepository;
     private final PozingRepository pozingRepository;
@@ -253,6 +262,127 @@ public class TravelService {
     private void validateMember(Travel travel, User user) {
         boolean isMember = travelMemberRepository.existsByTravelAndUser(travel, user);
         if (!isMember) {
+            throw new BusinessException(ErrorCode.COMMON403);
+        }
+    }
+
+    /**
+     * 여행 정보 수정 (리더만 가능, DONE 상태는 날짜 변경 불가)
+     */
+    @Transactional
+    public void updateTravel(User currentUser, Long travelId, TravelUpdateRequest request) {
+        Travel travel = travelRepository.findById(travelId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMON404));
+
+        validateLeader(travel, currentUser);
+        validateDateChangeAllowed(travel, request.startDate(), request.endDate());
+
+        LocalDate oldStartDate = travel.getStartDate();
+        LocalDate oldEndDate = travel.getEndDate();
+
+        travel.updateInfo(request.title(), request.destination(), request.startDate(), request.endDate());
+        syncCourseDates(travel, oldStartDate, oldEndDate, request.startDate(), request.endDate());
+        replaceTags(travel, request.tagIds());
+    }
+
+    /**
+     * 여행 공개 설정 변경 (리더만 가능, 완료된 여행만 가능)
+     */
+    @Transactional
+    public void updateVisibility(User currentUser, Long travelId, TravelVisibilityRequest request) {
+        Travel travel = travelRepository.findById(travelId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMON404));
+
+        validateLeader(travel, currentUser);
+
+        if (travel.getStatus() != TravelStatus.DONE) {
+            throw new BusinessException(ErrorCode.TRAVEL_NOT_COMPLETED);
+        }
+
+        travel.updateVisibility(request.isPublic());
+    }
+
+    private void validateDateChangeAllowed(Travel travel, LocalDate startDate, LocalDate endDate) {
+        if (travel.getStatus() != TravelStatus.DONE) {
+            return;
+        }
+
+        if (!travel.getStartDate().equals(startDate) || !travel.getEndDate().equals(endDate)) {
+            throw new BusinessException(ErrorCode.COMPLETED_TRAVEL_DATE_NOT_EDITABLE);
+        }
+    }
+
+    /**
+     * 여행 기간 변경에 맞춰 코스를 동기화
+     */
+    private void syncCourseDates(
+            Travel travel,
+            LocalDate oldStartDate,
+            LocalDate oldEndDate,
+            LocalDate newStartDate,
+            LocalDate newEndDate
+    ) {
+        int oldDayCount = (int) (ChronoUnit.DAYS.between(oldStartDate, oldEndDate) + 1);
+        int newDayCount = (int) (ChronoUnit.DAYS.between(newStartDate, newEndDate) + 1);
+
+        List<Course> courses = courseRepository.findByTravelOrderByDayNumberAsc(travel);
+
+        for (Course course : courses) {
+            if (course.getDayNumber() <= newDayCount) {
+                course.updateDate(newStartDate.plusDays(course.getDayNumber() - 1));
+            }
+        }
+
+        if (newDayCount > oldDayCount) {
+            List<Course> newCourses = new ArrayList<>();
+            for (int day = oldDayCount + 1; day <= newDayCount; day++) {
+                newCourses.add(Course.builder()
+                        .travel(travel)
+                        .dayNumber(day)
+                        .date(newStartDate.plusDays(day - 1))
+                        .build());
+            }
+            courseRepository.saveAll(newCourses);
+        } else if (newDayCount < oldDayCount) {
+            List<Course> coursesToRemove = courses.stream()
+                    .filter(course -> course.getDayNumber() > newDayCount)
+                    .toList();
+
+            if (!coursesToRemove.isEmpty()) {
+                List<CourseSpot> spotsToRemove = courseSpotRepository.findAllByCourseInOrder(coursesToRemove);
+                if (!spotsToRemove.isEmpty()) {
+                    pozingRepository.deleteAllInBatch(pozingRepository.findByCourseSpotIn(spotsToRemove));
+                    courseSpotRepository.deleteAllInBatch(spotsToRemove);
+                }
+                courseRepository.deleteAllInBatch(coursesToRemove);
+            }
+        }
+    }
+
+    private void replaceTags(Travel travel, List<Long> tagIds) {
+        travelTagRepository.deleteAllInBatch(travelTagRepository.findByTravel(travel));
+
+        if (tagIds == null || tagIds.isEmpty()) {
+            return;
+        }
+
+        Set<Long> uniqueTagIds = new HashSet<>(tagIds);
+        List<Tag> tags = tagRepository.findAllById(uniqueTagIds);
+        if (tags.size() != uniqueTagIds.size()) {
+            throw new BusinessException(ErrorCode.COMMON404);
+        }
+
+        List<TravelTag> travelTags = tags.stream()
+                .map(tag -> TravelTag.builder().travel(travel).tag(tag).build())
+                .toList();
+        travelTagRepository.saveAll(travelTags);
+    }
+
+    private void validateLeader(Travel travel, User user) {
+        TravelMember member = travelMemberRepository.findByTravelAndUser(travel, user)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMON403));
+
+        if (member.getRole() != TravelMemberRole.LEADER) {
             throw new BusinessException(ErrorCode.COMMON403);
         }
     }
