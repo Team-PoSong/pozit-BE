@@ -11,6 +11,7 @@ public enum ErrorCode {
     COMMON401(HttpStatus.UNAUTHORIZED, "COMMON401", "인증되지 않은 요청입니다."),
     COMMON403(HttpStatus.FORBIDDEN, "COMMON403", "접근 권한이 없습니다."),
     COMMON404(HttpStatus.NOT_FOUND, "COMMON404", "요청한 리소스를 찾을 수 없습니다."),
+    COMMON409(HttpStatus.CONFLICT, "COMMON409", "요청이 충돌했습니다. 다시 시도해주세요."),
     COMMON500(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON500", "서버 내부 오류가 발생했습니다."),
 
     // Auth

@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/pozit
+    username: postgres
+    password: guswls
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+    show-sql: false
+
+oauth:
+  kakao:
+    client-id: 2a8093ab48ee4065408ce65e52c0b7ea
+    client-secret: TeiqZpghMt3ywIU2To3rQ4ESQ9TtmRpU
+    redirect-uri: http://localhost:8080/api/auth/kakao/callback
+
+jwt:
+  secret-key: cNsDgv7kN80NFbajjj/9yJebH6YRbDQQ3aD3Prawak0=
+  issuer: pozit-server
+  access-token-expiration: 1800000
+  refresh-token-expiration: 1209600000

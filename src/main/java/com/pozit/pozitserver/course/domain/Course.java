@@ -29,6 +29,9 @@ public class Course {
     @Column(nullable = false)
     private LocalDate date;
 
+    @Version
+    private Long version;
+
     @Builder
     private Course(Travel travel, Integer dayNumber, LocalDate date) {
         this.travel = travel;

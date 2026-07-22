@@ -97,7 +97,7 @@ public class CourseService {
      */
     @Transactional
     public void updateCourseSpots(User currentUser, Long courseId, CourseSpotUpdateRequest request) {
-        Course course = courseRepository.findById(courseId)
+        Course course = courseRepository.findByIdForUpdate(courseId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMON404));
 
         Travel travel = course.getTravel();
