@@ -25,7 +25,6 @@ public enum ErrorCode {
 
     // Course
     DUPLICATE_COURSE_SPOT(HttpStatus.BAD_REQUEST, "COURSE400_1", "중복된 관광지 ID가 포함되어 있습니다."),
-    COMPLETED_TRAVEL_DATE_NOT_EDITABLE(HttpStatus.BAD_REQUEST, "TRAVEL400_3", "완료된 여행은 날짜를 수정할 수 없습니다."),
     TRAVEL_NOT_FOUND(HttpStatus.NOT_FOUND, "TRAVEL404_1", "해당 여행을 찾을 수 없어요."),
     ALREADY_JOINED_TRAVEL(HttpStatus.BAD_REQUEST, "TRAVEL400_5", "해당 여행을 찾을 수 없어요."),
     CANNOT_JOIN_FINISHED_TRAVEL(HttpStatus.BAD_REQUEST, "TRAVEL400_6", "해당 여행을 찾을 수 없어요."),
