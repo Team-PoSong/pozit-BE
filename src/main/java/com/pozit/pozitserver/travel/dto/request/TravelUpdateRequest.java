@@ -12,5 +12,5 @@ public record TravelUpdateRequest(
         @NotBlank @Size(max = 30) String destination,
         @NotNull LocalDate startDate,
         @NotNull LocalDate endDate,
-        `@NotNull` List<`@NotNull` Long> tagIds
+        @NotNull List<@NotNull Long> tagIds
 ) {}
