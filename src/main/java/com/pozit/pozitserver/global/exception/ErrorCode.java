@@ -14,7 +14,10 @@ public enum ErrorCode {
     COMMON500(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON500", "서버 내부 오류가 발생했습니다."),
 
     // Auth
-    KAKAO_INVALID_ACCESS_TOKEN(HttpStatus.UNAUTHORIZED, "KAKAO401", "유효하지 않은 카카오 액세스 토큰입니다.");
+    KAKAO_INVALID_ACCESS_TOKEN(HttpStatus.UNAUTHORIZED, "KAKAO401", "유효하지 않은 카카오 액세스 토큰입니다."),
+
+    // Travel
+    TRAVEL_INVALID_DATE_RANGE(HttpStatus.BAD_REQUEST, "TRAVEL400", "종료일은 시작일보다 빠를 수 없습니다.");
 
 
     private final HttpStatus httpStatus;

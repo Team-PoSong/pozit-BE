@@ -10,7 +10,13 @@ import lombok.NoArgsConstructor;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Table(name = "travel_tags")
+@Table(
+        name = "travel_tags",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_travel_tag",
+                columnNames = {"travel_id", "tag_id"}
+        )
+)
 public class TravelTag {
 
     @Id

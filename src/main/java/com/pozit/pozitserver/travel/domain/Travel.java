@@ -1,5 +1,7 @@
 package com.pozit.pozitserver.travel.domain;
 
+import com.pozit.pozitserver.global.exception.BusinessException;
+import com.pozit.pozitserver.global.exception.ErrorCode;
 import com.pozit.pozitserver.user.domain.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -72,6 +74,7 @@ public class Travel {
             LocalDate endDate,
             String inviteCode
     ) {
+        validateDateRange(startDate, endDate);
         this.leader = leader;
         this.title = title;
         this.destination = destination;
@@ -83,10 +86,17 @@ public class Travel {
     }
 
     public void updateInfo(String title, String destination, LocalDate startDate, LocalDate endDate) {
+        validateDateRange(startDate, endDate);
         this.title = title;
         this.destination = destination;
         this.startDate = startDate;
         this.endDate = endDate;
+    }
+
+    private void validateDateRange(LocalDate startDate, LocalDate endDate) {
+        if (endDate.isBefore(startDate)) {
+            throw new BusinessException(ErrorCode.TRAVEL_INVALID_DATE_RANGE);
+        }
     }
 
     public void updateVisibility(boolean isPublic) {
