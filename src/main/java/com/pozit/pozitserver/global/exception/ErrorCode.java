@@ -11,6 +11,7 @@ public enum ErrorCode {
     COMMON401(HttpStatus.UNAUTHORIZED, "COMMON401", "인증되지 않은 요청입니다."),
     COMMON403(HttpStatus.FORBIDDEN, "COMMON403", "접근 권한이 없습니다."),
     COMMON404(HttpStatus.NOT_FOUND, "COMMON404", "요청한 리소스를 찾을 수 없습니다."),
+    COMMON409(HttpStatus.CONFLICT, "COMMON409", "요청이 충돌했습니다. 다시 시도해주세요."),
     COMMON500(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON500", "서버 내부 오류가 발생했습니다."),
 
     // Auth
@@ -19,7 +20,11 @@ public enum ErrorCode {
     // Travel
     INVALID_TRAVEL_PERIOD(HttpStatus.BAD_REQUEST, "TRAVEL400_1", "종료일은 시작일보다 빠를 수 없습니다."),
     TRAVEL_NOT_COMPLETED(HttpStatus.BAD_REQUEST, "TRAVEL400_2", "완료된 여행만 공개 설정을 변경할 수 있습니다."),
-    COMPLETED_TRAVEL_DATE_NOT_EDITABLE(HttpStatus.BAD_REQUEST, "TRAVEL400_3", "완료된 여행은 날짜를 수정할 수 없습니다.");
+    COMPLETED_TRAVEL_DATE_NOT_EDITABLE(HttpStatus.BAD_REQUEST, "TRAVEL400_3", "완료된 여행은 날짜를 수정할 수 없습니다."),
+    COMPLETED_TRAVEL_COURSE_NOT_EDITABLE(HttpStatus.BAD_REQUEST, "TRAVEL400_4", "완료된 여행의 코스는 수정할 수 없습니다."),
+
+    // Course
+    DUPLICATE_COURSE_SPOT(HttpStatus.BAD_REQUEST, "COURSE400_1", "중복된 관광지 ID가 포함되어 있습니다.");
 
 
     private final HttpStatus httpStatus;
