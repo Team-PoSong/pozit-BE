@@ -6,50 +6,27 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
+@Table(
+        name = "regions",
+        indexes = {
+                @Index(
+                        name = "idx_region_parent_code",
+                        columnList = "parent_code"
+                )
+        }
+)
 @Getter
-@Table(name = "regions")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Region {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    /**
-     * 행정구역 코드
-     * 예: 47130
-     */
-    @Column(nullable = false, unique = true, length = 20)
+    @Column(length=5)
     private String code;
 
-    /**
-     * 시·도
-     * 예: 경상북도
-     */
-    @Column(nullable = false, length = 30)
-    private String sido;
+    @Column(nullable = false, length = 100)
+    private String name;
 
-    /**
-     * 시·군·구
-     * 예: 경주시
-     */
-    @Column(nullable = false, length = 30)
-    private String sigungu;
-
-    /**
-     * 화면 표시용 이름
-     * 예: 경상북도 경주시
-     */
-    @Column(nullable = false, length = 70)
-    private String fullName;
-
-    /**
-     * 해당 지역을 여행 목적지로 노출할지 여부
-     */
-    @Column(nullable = false)
-    private boolean active = true;
-
-    private Double latitude;
-
-    private Double longitude;
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JoinColumn(name="parent_code")
+    private Region parent;
 }
