@@ -129,7 +129,7 @@ public class TravelController {
         return SuccessResponse.ok(travelService.makeTravel(request,user));
     }
 
-    @GetMapping("/invitation")
+    @GetMapping("/invite")
     @Operation(summary = "여행 초대 코드 생성")
     public SuccessResponse<InviteCodeResponse> makeInvitationCode(
             @Parameter(description = "여행 ID")
@@ -137,14 +137,24 @@ public class TravelController {
         return SuccessResponse.ok(travelService.getInviteCode(travelId));
     }
 
-    @PostMapping("/join")
-    @Operation(summary="초대 코드로 여행 참여")
-    public SuccessResponse<TravelJoinResponse> joinTravel(
+    @PostMapping("/invite/find")
+    @Operation(summary="초대 코드로 여행 탐색")
+    public SuccessResponse<InviteCodeTravelResponse> findTravel(
             @Valid @RequestBody TravelJoinRequest request,
             @CurrentUser User user
     ){
-        return SuccessResponse.ok(travelService.joinTravel(request,user));
+        return SuccessResponse.ok(travelService.findTravel(request,user));
     }
+
+    @PostMapping("/invite/join")
+    @Operation(summary="초대 코드로 여행 참여")
+    public SuccessResponse<JoinResponse> joinTravel(
+            @RequestParam(defaultValue = "1") Long travelId,
+            @CurrentUser User user
+    ){
+        return SuccessResponse.ok(travelService.joinTravel(travelId,user));
+    }
+
 
     @GetMapping
     @Operation(summary = "여행 목록 조회", description = "미완료(예정/진행중) 및 완료된 지난 여행 목록을 구분하여 조회합니다.")

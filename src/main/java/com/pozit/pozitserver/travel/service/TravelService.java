@@ -117,18 +117,26 @@ public class TravelService {
     }
 
     /**
-     * Invite Code를 통한 여행 참여
+     * Invite Code를 통한 여행 탐색
      */
-    public TravelJoinResponse joinTravel(TravelJoinRequest request,User user){
+    public InviteCodeTravelResponse findTravel(TravelJoinRequest request, User user){
         Travel travel=travelRepository.findByInviteCode(request.inviteCode())
                 .orElseThrow(()->new BusinessException(ErrorCode.INVALID_INVITE_CODE));
         validateJoinable(travel,user);
 
-        long memberCount=travelMemberRepository.countByTravel(travel);
-        List<String> tags=travelTagRepository.findAllWithTagByTravelId(travel.getId())
-                .stream()
-                .map(travelTag -> travelTag.getTag().getName())
-                .toList();
+        Long memberCount=travelMemberRepository.countByTravel(travel);
+        List<String> tags=travelTagRepository.findTagNamesByTravelId(travel.getId());
+
+        return InviteCodeTravelResponse.from(travel, memberCount, tags);
+    }
+
+    /**
+     * 여행 참여
+     */
+    @Transactional
+    public JoinResponse joinTravel(Long travelId, User user){
+        Travel travel=travelRepository.findById(travelId)
+                .orElseThrow(()->new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
 
         TravelMember travelMember=TravelMember.builder()
                 .travel(travel)
@@ -137,7 +145,7 @@ public class TravelService {
                 .build();
 
         travelMemberRepository.save(travelMember);
-        return TravelJoinResponse.from(travel, memberCount, tags);
+        return JoinResponse.from(travel,travelMember);
     }
 
     private void validateJoinable(Travel travel,User user){

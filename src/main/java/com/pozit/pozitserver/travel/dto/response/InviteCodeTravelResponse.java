@@ -5,7 +5,7 @@ import com.pozit.pozitserver.travel.domain.Travel;
 import java.time.LocalDate;
 import java.util.List;
 
-public record TravelJoinResponse (
+public record InviteCodeTravelResponse(
         Long travelId,
         String title,
         String destination,
@@ -15,12 +15,12 @@ public record TravelJoinResponse (
         LocalDate startDate,
         LocalDate endDate
 ){
-    public static TravelJoinResponse from(
+    public static InviteCodeTravelResponse from(
             Travel travel,
             Long memberCount,
             List<String> tags
     ){
-        return new TravelJoinResponse(
+        return new InviteCodeTravelResponse(
                 travel.getId(),
                 travel.getTitle(),
                 travel.getDestination(),
@@ -32,3 +32,4 @@ public record TravelJoinResponse (
         );
     }
 }
+
