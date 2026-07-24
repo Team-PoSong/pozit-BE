@@ -20,7 +20,12 @@ public enum ErrorCode {
     INVALID_TRAVEL_PERIOD(HttpStatus.BAD_REQUEST, "TRAVEL400_1", "종료일은 시작일보다 빠를 수 없습니다."),
     TRAVEL_NOT_COMPLETED(HttpStatus.BAD_REQUEST, "TRAVEL400_2", "완료된 여행만 공개 설정을 변경할 수 있습니다."),
     COMPLETED_TRAVEL_DATE_NOT_EDITABLE(HttpStatus.BAD_REQUEST, "TRAVEL400_3", "완료된 여행은 날짜를 수정할 수 없습니다."),
+    TRAVEL_NOT_FOUND(HttpStatus.NOT_FOUND, "TRAVEL404_1", "해당 여행을 찾을 수 없어요."),
+    ALREADY_JOINED_TRAVEL(HttpStatus.BAD_REQUEST, "TRAVEL400_5", "해당 여행을 찾을 수 없어요."),
+    CANNOT_JOIN_FINISHED_TRAVEL(HttpStatus.BAD_REQUEST, "TRAVEL400_6", "해당 여행을 찾을 수 없어요."),
 
+    INVALID_INVITE_CODE(HttpStatus.BAD_REQUEST, "TRAVEL400_4", "유효하지 않은 초대 코드입니다."),
+    INVITE_CODE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "TRAVEL500_1", "초대 코드 생성에 실패했어요."),
     INVALID_REGION(HttpStatus.BAD_REQUEST,"TRAVEL404_1","존재하지 않는 여행지입니다.");
 
     private final HttpStatus httpStatus;

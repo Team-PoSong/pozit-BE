@@ -19,4 +19,12 @@ public interface TravelTagRepository extends JpaRepository<TravelTag, Long> {
             where tt.travel in :travels
             """)
     List<TravelTag> findAllWithTagByTravelIn(@Param("travels") List<Travel> travels);
+
+    @Query("""
+            select tt
+            from TravelTag tt
+            join fetch tt.tag
+            where tt.travel.id = :travelId
+            """)
+    List<TravelTag> findAllWithTagByTravelId(@Param("travelId") Long travelId);
 }

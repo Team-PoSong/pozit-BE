@@ -3,13 +3,12 @@ package com.pozit.pozitserver.travel.controller;
 import com.pozit.pozitserver.global.auth.annotation.CurrentUser;
 import com.pozit.pozitserver.global.response.ErrorResponse;
 import com.pozit.pozitserver.global.response.SuccessResponse;
+import com.pozit.pozitserver.tag.dto.response.TagResponse;
 import com.pozit.pozitserver.travel.dto.request.TravelCreateRequest;
+import com.pozit.pozitserver.travel.dto.request.TravelJoinRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelUpdateRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelVisibilityRequest;
-import com.pozit.pozitserver.travel.dto.response.TravelCreateResponse;
-import com.pozit.pozitserver.travel.dto.response.TravelDetailResponse;
-import com.pozit.pozitserver.travel.dto.response.TravelListResponse;
-import com.pozit.pozitserver.travel.dto.response.PresignedUrlResponse;
+import com.pozit.pozitserver.travel.dto.response.*;
 import com.pozit.pozitserver.travel.service.TravelService;
 import com.pozit.pozitserver.user.domain.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -130,6 +129,23 @@ public class TravelController {
         return SuccessResponse.ok(travelService.makeTravel(request,user));
     }
 
+    @GetMapping("/invitation")
+    @Operation(summary = "여행 초대 코드 생성")
+    public SuccessResponse<InviteCodeResponse> makeInvitationCode(
+            @Parameter(description = "여행 ID")
+            @RequestParam(defaultValue = "1") Long travelId){
+        return SuccessResponse.ok(travelService.getInviteCode(travelId));
+    }
+
+    @PostMapping("/join")
+    @Operation(summary="초대 코드로 여행 참여")
+    public SuccessResponse<TravelJoinResponse> joinTravel(
+            @Valid @RequestBody TravelJoinRequest request,
+            @CurrentUser User user
+    ){
+        return SuccessResponse.ok(travelService.joinTravel(request,user));
+    }
+
     @GetMapping
     @Operation(summary = "여행 목록 조회", description = "미완료(예정/진행중) 및 완료된 지난 여행 목록을 구분하여 조회합니다.")
     @ApiResponses({
@@ -206,6 +222,81 @@ public class TravelController {
             @CurrentUser User currentUser,
             @Parameter(description = "여행 ID") @PathVariable Long travelId) {
         return SuccessResponse.ok(travelService.getTravelDetail(currentUser, travelId));
+    }
+
+    @GetMapping("/{travelId}/tags")
+    @Operation(summary = "여행 태그 목록 조회", description = "선택한 여행에 연결된 태그 목록을 조회합니다. 해당 여행의 멤버만 조회할 수 있습니다.")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "COMMON200",
+                                      "message": "요청에 성공했습니다.",
+                                      "result": [
+                                        {
+                                          "id": 1,
+                                          "name": "맛집"
+                                        },
+                                        {
+                                          "id": 2,
+                                          "name": "힐링"
+                                        }
+                                      ]
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "인증되지 않은 요청",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON401",
+                                      "message": "인증되지 않은 요청입니다."
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "해당 여행의 멤버가 아니어서 접근 권한이 없음",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON403",
+                                      "message": "접근 권한이 없습니다."
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "존재하지 않는 여행",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "TRAVEL404_1",
+                                      "message": "해당 여행을 찾을 수 없어요."
+                                    }
+                                    """)
+                    )
+            )
+    })
+    public SuccessResponse<List<TagResponse>> getTravelTags(
+            @CurrentUser User currentUser,
+            @Parameter(description = "여행 ID") @PathVariable Long travelId) {
+        return SuccessResponse.ok(travelService.getTravelTags(currentUser, travelId));
     }
 
     @PatchMapping("/{travelId}")

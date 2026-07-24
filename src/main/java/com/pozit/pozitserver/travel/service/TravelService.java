@@ -7,10 +7,12 @@ import com.pozit.pozitserver.course.repository.CourseRepository;
 import com.pozit.pozitserver.course.repository.CourseSpotRepository;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
+import com.pozit.pozitserver.global.util.RandomUtil;
 import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
 import com.pozit.pozitserver.tag.domain.Tag;
 import com.pozit.pozitserver.tag.domain.TravelTag;
+import com.pozit.pozitserver.tag.dto.response.TagResponse;
 import com.pozit.pozitserver.tag.repository.TagRepository;
 import com.pozit.pozitserver.tag.repository.TravelTagRepository;
 import com.pozit.pozitserver.travel.domain.Travel;
@@ -18,11 +20,10 @@ import com.pozit.pozitserver.travel.domain.TravelMember;
 import com.pozit.pozitserver.travel.domain.TravelMemberRole;
 import com.pozit.pozitserver.travel.domain.TravelStatus;
 import com.pozit.pozitserver.travel.dto.request.TravelCreateRequest;
+import com.pozit.pozitserver.travel.dto.request.TravelJoinRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelUpdateRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelVisibilityRequest;
-import com.pozit.pozitserver.travel.dto.response.TravelCreateResponse;
-import com.pozit.pozitserver.travel.dto.response.TravelDetailResponse;
-import com.pozit.pozitserver.travel.dto.response.TravelListResponse;
+import com.pozit.pozitserver.travel.dto.response.*;
 import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
 import com.pozit.pozitserver.user.domain.User;
@@ -57,7 +58,6 @@ public class TravelService {
     private final PozingRepository pozingRepository;
 
 
-
     /**
      * 여행 생성
      */
@@ -69,6 +69,8 @@ public class TravelService {
                 .toList();
         List<Tag> tags=tagRepository.findAllById(distinctTagIds);
 
+        String inviteCode = generateUniqueInviteCode();
+
         Travel travel=Travel.builder()
                 .leader(user)
                 .title(request.title())
@@ -76,6 +78,7 @@ public class TravelService {
                 .regionCode(request.regionCode())
                 .startDate(request.startDate())
                 .endDate(request.endDate())
+                .inviteCode(inviteCode)
                 .build();
         Travel savedTravel=travelRepository.save(travel);
 
@@ -92,6 +95,61 @@ public class TravelService {
         travelMemberRepository.save(travelMember);
         return TravelCreateResponse.from(savedTravel);
     }
+
+    private String generateUniqueInviteCode(){
+        for (int i = 0; i < SEARCH_LIMIT; i++) {
+            String inviteCode = RandomUtil.generateInviteCode();
+            if (!travelRepository.existsByInviteCode(inviteCode)) {
+                return inviteCode;
+            }
+        }
+
+        throw new BusinessException(ErrorCode.INVITE_CODE_GENERATION_FAILED);
+    }
+
+    /**
+     * invite code 조회
+     */
+    public InviteCodeResponse getInviteCode(Long travelId){
+        Travel travel=travelRepository.findById(travelId)
+                .orElseThrow(()->new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
+        return new InviteCodeResponse(travelId,travel.getInviteCode());
+    }
+
+    /**
+     * Invite Code를 통한 여행 참여
+     */
+    public TravelJoinResponse joinTravel(TravelJoinRequest request,User user){
+        Travel travel=travelRepository.findByInviteCode(request.inviteCode())
+                .orElseThrow(()->new BusinessException(ErrorCode.INVALID_INVITE_CODE));
+        validateJoinable(travel,user);
+
+        long memberCount=travelMemberRepository.countByTravel(travel);
+        List<String> tags=travelTagRepository.findAllWithTagByTravelId(travel.getId())
+                .stream()
+                .map(travelTag -> travelTag.getTag().getName())
+                .toList();
+
+        TravelMember travelMember=TravelMember.builder()
+                .travel(travel)
+                .user(user)
+                .role(TravelMemberRole.MEMBER)
+                .build();
+
+        travelMemberRepository.save(travelMember);
+        return TravelJoinResponse.from(travel, memberCount, tags);
+    }
+
+    private void validateJoinable(Travel travel,User user){
+        boolean alreadyJoined=travelMemberRepository.existsByTravelAndUser(travel,user);
+        if(alreadyJoined){
+            throw new BusinessException(ErrorCode.ALREADY_JOINED_TRAVEL);
+        }
+        if(travel.getStatus()==TravelStatus.DONE){
+            throw new BusinessException(ErrorCode.CANNOT_JOIN_FINISHED_TRAVEL);
+        }
+    }
+
 
     /**
      * 여행 목록 조회
@@ -129,6 +187,18 @@ public class TravelService {
                         tagsByTravelId.getOrDefault(travel.getId(), List.of()),
                         spotsByTravelId.getOrDefault(travel.getId(), List.of())
                 ))
+                .toList();
+    }
+
+    public List<TagResponse> getTravelTags(User currentUser, Long travelId) {
+        Travel travel = travelRepository.findById(travelId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
+
+        validateMember(travel, currentUser);
+
+        return travelTagRepository.findAllWithTagByTravelId(travelId)
+                .stream()
+                .map(travelTag -> TagResponse.from(travelTag.getTag()))
                 .toList();
     }
 

@@ -77,7 +77,8 @@ public class Travel {
             String destination,
             String regionCode,
             LocalDate startDate,
-            LocalDate endDate
+            LocalDate endDate,
+            String inviteCode
     ) {
 //        validateDateRange(startDate, endDate);
         this.leader = leader;
@@ -87,6 +88,7 @@ public class Travel {
         this.startDate = startDate;
         this.endDate = endDate;
         this.status = TravelStatus.BEFORE;
+        this.inviteCode=inviteCode;
         this.isPublic = false;
     }
 

@@ -34,4 +34,11 @@ public interface TravelMemberRepository extends JpaRepository<TravelMember, Long
     Optional<TravelMember> findByTravelAndUser(Travel travel, User user);
 
     boolean existsByTravelAndUser(Travel travel, User user);
+
+    @Query("""
+        select count(tm)
+        from TravelMember tm
+        where tm.travel=:travel
+        """)
+    long countByTravel(@Param("travel") Travel travel);
 }
