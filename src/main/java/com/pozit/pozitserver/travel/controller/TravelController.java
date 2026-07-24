@@ -3,8 +3,10 @@ package com.pozit.pozitserver.travel.controller;
 import com.pozit.pozitserver.global.auth.annotation.CurrentUser;
 import com.pozit.pozitserver.global.response.ErrorResponse;
 import com.pozit.pozitserver.global.response.SuccessResponse;
+import com.pozit.pozitserver.travel.dto.request.TravelCreateRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelUpdateRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelVisibilityRequest;
+import com.pozit.pozitserver.travel.dto.response.TravelCreateResponse;
 import com.pozit.pozitserver.travel.dto.response.TravelDetailResponse;
 import com.pozit.pozitserver.travel.dto.response.TravelListResponse;
 import com.pozit.pozitserver.travel.dto.response.PresignedUrlResponse;
@@ -32,13 +34,101 @@ public class TravelController {
 
     private final TravelService travelService;
 
-//    @PostMapping("")
-//    @Operation(summary="여행 생성")
-//    public SuccessResponse<List<>> searchDestination(
-//            @RequestParam String keyword
-//    ){
-//        return SuccessResponse.ok(travelService.searchDestination(keyword));
-//    }
+    @PostMapping("")
+    @Operation(
+            summary = "여행 생성",
+            description = "새 여행을 생성합니다. 요청한 사용자가 여행 리더로 등록되며, 여행 기간은 시작일부터 최대 3박 4일까지 설정할 수 있습니다."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "생성 성공",
+                    content = @Content(
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "COMMON200",
+                                      "message": "요청에 성공했습니다.",
+                                      "result": {
+                                        "travelId": 1
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "입력값 검증 실패 또는 여행 기간 조건 불일치",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = {
+                                    @ExampleObject(
+                                            name = "입력값 검증 실패",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "COMMON400",
+                                                      "message": "입력값 검증에 실패했습니다.",
+                                                      "errors": {
+                                                        "title": "공백일 수 없습니다."
+                                                      }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "여행 기간 초과",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "COMMON400",
+                                                      "message": "입력값 검증에 실패했습니다.",
+                                                      "errors": {
+                                                        "endDate": "여행 기간은 최대 3박 4일까지 가능합니다."
+                                                      }
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "인증되지 않은 요청",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON401",
+                                      "message": "인증되지 않은 요청입니다."
+                                    }
+                                    """)
+                    )
+            )
+    })
+    public SuccessResponse<TravelCreateResponse> makeTravel(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "생성할 여행 정보",
+                    required = true,
+                    content = @Content(
+                            schema = @Schema(implementation = TravelCreateRequest.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "title": "서울 주말 여행",
+                                      "destination": "서울특별시",
+                                      "regionCode": "11000",
+                                      "startDate": "2026-08-01",
+                                      "endDate": "2026-08-03",
+                                      "tagIds": [1, 2, 3]
+                                    }
+                                    """)
+                    )
+            )
+            @Valid @RequestBody TravelCreateRequest request,
+            @CurrentUser User user
+    ){
+        return SuccessResponse.ok(travelService.makeTravel(request,user));
+    }
 
     @GetMapping
     @Operation(summary = "여행 목록 조회", description = "미완료(예정/진행중) 및 완료된 지난 여행 목록을 구분하여 조회합니다.")

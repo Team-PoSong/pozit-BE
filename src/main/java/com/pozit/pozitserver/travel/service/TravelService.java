@@ -17,16 +17,16 @@ import com.pozit.pozitserver.travel.domain.Travel;
 import com.pozit.pozitserver.travel.domain.TravelMember;
 import com.pozit.pozitserver.travel.domain.TravelMemberRole;
 import com.pozit.pozitserver.travel.domain.TravelStatus;
+import com.pozit.pozitserver.travel.dto.request.TravelCreateRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelUpdateRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelVisibilityRequest;
+import com.pozit.pozitserver.travel.dto.response.TravelCreateResponse;
 import com.pozit.pozitserver.travel.dto.response.TravelDetailResponse;
 import com.pozit.pozitserver.travel.dto.response.TravelListResponse;
 import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
 import com.pozit.pozitserver.user.domain.User;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,6 +56,42 @@ public class TravelService {
     private final CourseSpotRepository courseSpotRepository;
     private final PozingRepository pozingRepository;
 
+
+
+    /**
+     * 여행 생성
+     */
+    @Transactional
+    public TravelCreateResponse makeTravel(TravelCreateRequest request, User user) {
+        List<Long> distinctTagIds=request.tagIds()
+                .stream()
+                .distinct()
+                .toList();
+        List<Tag> tags=tagRepository.findAllById(distinctTagIds);
+
+        Travel travel=Travel.builder()
+                .leader(user)
+                .title(request.title())
+                .destination(request.destination())
+                .regionCode(request.regionCode())
+                .startDate(request.startDate())
+                .endDate(request.endDate())
+                .build();
+        Travel savedTravel=travelRepository.save(travel);
+
+        List<TravelTag> travelTags=tags.stream()
+                .map(tag->TravelTag.create(savedTravel,tag))
+                .toList();
+        travelTagRepository.saveAll(travelTags);
+
+        TravelMember travelMember=TravelMember.builder()
+                .travel(savedTravel)
+                .user(user)
+                .role(TravelMemberRole.LEADER)
+                .build();
+        travelMemberRepository.save(travelMember);
+        return TravelCreateResponse.from(savedTravel);
+    }
 
     /**
      * 여행 목록 조회

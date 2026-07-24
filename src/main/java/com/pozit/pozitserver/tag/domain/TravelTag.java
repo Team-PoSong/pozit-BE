@@ -36,4 +36,11 @@ public class TravelTag {
         this.travel = travel;
         this.tag = tag;
     }
+
+    public static TravelTag create(
+            Travel travel,
+            Tag tag
+    ){
+        return new TravelTag(travel,tag);
+    }
 }
