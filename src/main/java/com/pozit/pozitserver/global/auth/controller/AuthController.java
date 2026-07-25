@@ -35,7 +35,6 @@ public class AuthController {
     private final KakaoProperties kakaoProperties;
     private final AuthService authService;
 
-    @Hidden
     @GetMapping("/kakao")
     public void redirectToKakao(
             HttpServletResponse response
@@ -54,7 +53,6 @@ public class AuthController {
         response.sendRedirect(authorizationUrl);
     }
 
-    @Hidden
     @GetMapping("/kakao/callback")
     public SuccessResponse<LoginTokenResponse> kakaoCallback(
             @RequestParam String code
