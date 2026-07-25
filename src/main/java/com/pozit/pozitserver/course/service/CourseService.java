@@ -56,6 +56,24 @@ public class CourseService {
 
         validateMember(course.getTravel(), currentUser);
 
+        return buildCourseDetailResponse(course);
+    }
+
+    /**
+     * 공개 여행의 코스 상세 조회 (완료 + 공개 여행인 경우만, 비로그인 접근 가능)
+     */
+    public CourseDetailResponse getPublicCourseDetail(Long courseId) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMON404));
+
+        if (!course.getTravel().isPubliclyVisible()) {
+            throw new BusinessException(ErrorCode.COMMON404);
+        }
+
+        return buildCourseDetailResponse(course);
+    }
+
+    private CourseDetailResponse buildCourseDetailResponse(Course course) {
         List<CourseSpot> spots = courseSpotRepository.findAllByCourseInOrder(List.of(course));
 
         List<Pozing> pozings = spots.isEmpty()
