@@ -155,16 +155,6 @@ public class TravelService {
         return JoinResponse.from(travel,travelMember);
     }
 
-    private void validateJoinable(Travel travel,User user){
-        boolean alreadyJoined=travelMemberRepository.existsByTravelAndUser(travel,user);
-        if(alreadyJoined){
-            throw new BusinessException(ErrorCode.ALREADY_JOINED_TRAVEL);
-        }
-        if(travel.getStatus()==TravelStatus.DONE){
-            throw new BusinessException(ErrorCode.CANNOT_JOIN_FINISHED_TRAVEL);
-        }
-    }
-
 
     /**
      * 여행 목록 조회
