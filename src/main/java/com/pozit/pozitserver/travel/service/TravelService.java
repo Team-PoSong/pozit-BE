@@ -23,9 +23,13 @@ import com.pozit.pozitserver.travel.dto.request.TravelCreateRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelJoinRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelUpdateRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelVisibilityRequest;
+import com.pozit.pozitserver.travel.dto.response.InviteCodeResponse;
+import com.pozit.pozitserver.travel.dto.response.JoinResponse;
+import com.pozit.pozitserver.travel.dto.response.PublicTravelDetailResponse;
+import com.pozit.pozitserver.travel.dto.response.TravelCreateResponse;
 import com.pozit.pozitserver.travel.dto.response.TravelDetailResponse;
+import com.pozit.pozitserver.travel.dto.response.TravelJoinResponse;
 import com.pozit.pozitserver.travel.dto.response.TravelListResponse;
-import com.pozit.pozitserver.travel.dto.response.*;
 import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
 import com.pozit.pozitserver.user.domain.User;
@@ -247,6 +251,167 @@ public class TravelService {
 
         validateMember(travel, currentUser);
 
+        return buildTravelDetailResponse(travel);
+    }
+
+    /**
+     * 공개 여행 피드 조회 (완료 + 공개 여행만, 로그인 시 본인이 참여한 여행은 제외)
+     */
+    public List<TravelListResponse> getPublicTravels(User currentUser) {
+        List<Travel> travels = travelRepository.findByStatusAndIsPublicOrderByEndDateDescIdDesc(TravelStatus.DONE, true);
+
+        if (currentUser != null) {
+            Set<Long> myTravelIds = travelMemberRepository.findAllWithTravelByUser(currentUser).stream()
+                    .map(m -> m.getTravel().getId())
+                    .collect(Collectors.toSet());
+            travels = travels.stream()
+                    .filter(travel -> !myTravelIds.contains(travel.getId()))
+                    .toList();
+        }
+
+        if (travels.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, List<TravelMember>> membersByTravelId = travelMemberRepository
+                .findAllWithUserByTravelIn(travels).stream()
+                .collect(Collectors.groupingBy(m -> m.getTravel().getId()));
+
+        Map<Long, List<TravelTag>> tagsByTravelId = travelTagRepository
+                .findAllWithTagByTravelIn(travels).stream()
+                .collect(Collectors.groupingBy(t -> t.getTravel().getId()));
+
+        List<Course> allCourses = courseRepository.findByTravelInOrderByDayNumberAsc(travels);
+        Map<Long, List<CourseSpot>> spotsByTravelId = getSpotsGroupedByTravelId(allCourses);
+
+        return travels.stream()
+                .map(travel -> toTravelListResponse(
+                        travel,
+                        membersByTravelId.getOrDefault(travel.getId(), List.of()),
+                        tagsByTravelId.getOrDefault(travel.getId(), List.of()),
+                        spotsByTravelId.getOrDefault(travel.getId(), List.of())
+                ))
+                .toList();
+    }
+
+    /**
+     * 공개 여행 상세 조회 (완료 + 공개 여행만, 비로그인 접근 가능)
+     * 초대 코드와 멤버 개인 정보(userId)는 노출하지 않는 전용 응답을 사용한다.
+     */
+    public PublicTravelDetailResponse getPublicTravelDetail(Long travelId) {
+        Travel travel = travelRepository.findById(travelId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
+
+        validatePublicDone(travel);
+
+        return buildPublicTravelDetailResponse(travel);
+    }
+
+    private void validatePublicDone(Travel travel) {
+        if (travel.getStatus() != TravelStatus.DONE || !Boolean.TRUE.equals(travel.getIsPublic())) {
+            throw new BusinessException(ErrorCode.TRAVEL_NOT_FOUND);
+        }
+    }
+
+    private PublicTravelDetailResponse buildPublicTravelDetailResponse(Travel travel) {
+        List<TravelMember> members = travelMemberRepository.findAllWithUserByTravelIn(List.of(travel));
+        List<String> tags = travelTagRepository.findAllWithTagByTravelIn(List.of(travel)).stream()
+                .map(travelTag -> travelTag.getTag().getName())
+                .toList();
+        List<Course> courses = courseRepository.findByTravelOrderByDayNumberAsc(travel);
+
+        List<CourseSpot> allSpots = courses.isEmpty()
+                ? List.of()
+                : courseSpotRepository.findAllByCourseInOrder(courses);
+
+        Map<Long, List<CourseSpot>> spotsByCourseId = new HashMap<>();
+        for (CourseSpot spot : allSpots) {
+            spotsByCourseId
+                    .computeIfAbsent(spot.getCourse().getId(), k -> new ArrayList<>())
+                    .add(spot);
+        }
+
+        List<Pozing> allPozings = allSpots.isEmpty()
+                ? List.of()
+                : pozingRepository.findAllWithUserByCourseSpotIn(allSpots);
+
+        Map<Long, List<Pozing>> pozingsByCourseSpotId = allPozings.stream()
+                .collect(Collectors.groupingBy(p -> p.getCourseSpot().getId()));
+
+        int totalSpotCount = allSpots.size();
+        int totalPozingCount = allPozings.size();
+        int completionRate = calculateCompletionRate(allSpots);
+
+        String leaderNickname = members.stream()
+                .filter(m -> m.getRole() == TravelMemberRole.LEADER)
+                .findFirst()
+                .map(m -> m.getUser().getNickname())
+                .orElse(null);
+
+        List<PublicTravelDetailResponse.CourseInfo> courseInfos = courses.stream()
+                .map(course -> toPublicCourseInfo(course, spotsByCourseId, pozingsByCourseSpotId))
+                .toList();
+
+        return new PublicTravelDetailResponse(
+                travel.getId(),
+                travel.getTitle(),
+                travel.getDestination(),
+                travel.getStartDate(),
+                travel.getEndDate(),
+                travel.getStatus().name(),
+                travel.getIsPublic(),
+                travel.getBackgroundImageUrl(),
+                leaderNickname,
+                members.size(),
+                completionRate,
+                totalSpotCount,
+                totalPozingCount,
+                tags,
+                courseInfos
+        );
+    }
+
+    private PublicTravelDetailResponse.CourseInfo toPublicCourseInfo(
+            Course course,
+            Map<Long, List<CourseSpot>> spotsByCourseId,
+            Map<Long, List<Pozing>> pozingsByCourseSpotId
+    ) {
+        List<CourseSpot> spots = spotsByCourseId.getOrDefault(course.getId(), List.of());
+
+        List<PublicTravelDetailResponse.CourseSpotInfo> spotInfos = spots.stream()
+                .map(spot -> {
+                    List<Pozing> pozings = pozingsByCourseSpotId.getOrDefault(spot.getId(), List.of());
+                    List<PublicTravelDetailResponse.PublicPozingInfo> pozingInfos = pozings.stream()
+                            .map(p -> new PublicTravelDetailResponse.PublicPozingInfo(
+                                    p.getId(),
+                                    p.getUser().getNickname(),
+                                    p.getPozingUrl(),
+                                    p.getThumbnailUrl()
+                            ))
+                            .toList();
+
+                    return new PublicTravelDetailResponse.CourseSpotInfo(
+                            spot.getId(),
+                            spot.getTouristSpot().getId(),
+                            spot.getTouristSpot().getName(),
+                            spot.getTouristSpot().getLatitude(),
+                            spot.getTouristSpot().getLongitude(),
+                            spot.getOrderIndex(),
+                            spot.getStatus().name(),
+                            pozingInfos
+                    );
+                })
+                .toList();
+
+        return new PublicTravelDetailResponse.CourseInfo(
+                course.getId(),
+                course.getDayNumber(),
+                course.getDate(),
+                spotInfos
+        );
+    }
+
+    private TravelDetailResponse buildTravelDetailResponse(Travel travel) {
         List<TravelMember> members = travelMemberRepository.findAllWithUserByTravelIn(List.of(travel));
         List<String> tags = travelTagRepository.findAllWithTagByTravelIn(List.of(travel)).stream()
                 .map(travelTag -> travelTag.getTag().getName())
