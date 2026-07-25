@@ -139,7 +139,7 @@ public class TravelController {
 
     @PostMapping("/invite/find")
     @Operation(summary="초대 코드로 여행 탐색")
-    public SuccessResponse<InviteCodeTravelResponse> findTravel(
+    public SuccessResponse<TravelJoinResponse> findTravel(
             @Valid @RequestBody TravelJoinRequest request,
             @CurrentUser User user
     ){

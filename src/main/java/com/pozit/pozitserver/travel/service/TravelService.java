@@ -30,8 +30,6 @@ import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
 import com.pozit.pozitserver.user.domain.User;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -123,15 +121,20 @@ public class TravelService {
     /**
      * Invite Code를 통한 여행 탐색
      */
-    public InviteCodeTravelResponse findTravel(TravelJoinRequest request, User user){
+    public TravelJoinResponse findTravel(TravelJoinRequest request, User user){
         Travel travel=travelRepository.findByInviteCode(request.inviteCode())
                 .orElseThrow(()->new BusinessException(ErrorCode.INVALID_INVITE_CODE));
-        validateJoinable(travel,user);
+//        validateJoinable(travel,user);
 
         Long memberCount=travelMemberRepository.countByTravel(travel);
         List<String> tags=travelTagRepository.findTagNamesByTravelId(travel.getId());
 
-        return InviteCodeTravelResponse.from(travel, memberCount, tags);
+        boolean alreadyJoined=travelMemberRepository.existsByTravelAndUser(travel,user);
+        if(alreadyJoined){
+            return TravelJoinResponse.joined(travel, memberCount, tags);
+        }
+
+        return TravelJoinResponse.from(travel, memberCount, tags);
     }
 
     /**
