@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -35,7 +36,6 @@ public class AuthController {
     private final KakaoProperties kakaoProperties;
     private final AuthService authService;
 
-    @Hidden
     @GetMapping("/kakao")
     public void redirectToKakao(
             HttpServletResponse response
@@ -54,7 +54,6 @@ public class AuthController {
         response.sendRedirect(authorizationUrl);
     }
 
-    @Hidden
     @GetMapping("/kakao/callback")
     public SuccessResponse<LoginTokenResponse> kakaoCallback(
             @RequestParam String code
@@ -93,5 +92,20 @@ public class AuthController {
     ) {
         LoginTokenResponse response = authService.loginWithKakaoAccessToken(request.accessToken());
         return SuccessResponse.ok(response);
+    }
+
+    @PostMapping("/apple/callback")
+    public Map<String, Object> appleCallback(
+            @RequestParam String code,
+            @RequestParam("id_token") String identityToken,
+            @RequestParam String state,
+            @RequestParam(required = false) String user
+    ) {
+        return Map.of(
+                "authorizationCode", code,
+                "identityToken", identityToken,
+                "state", state,
+                "user", user == null ? "" : user
+        );
     }
 }

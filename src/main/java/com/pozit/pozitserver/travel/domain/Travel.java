@@ -2,6 +2,8 @@ package com.pozit.pozitserver.travel.domain;
 
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
+import com.pozit.pozitserver.tag.domain.Tag;
+import com.pozit.pozitserver.tag.domain.TravelTag;
 import com.pozit.pozitserver.user.domain.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -31,6 +33,9 @@ public class Travel {
 
     @Column(nullable = false, length = 30)
     private String destination;
+
+    @Column(nullable=false)
+    private String regionCode;
 
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
@@ -70,18 +75,20 @@ public class Travel {
             User leader,
             String title,
             String destination,
+            String regionCode,
             LocalDate startDate,
             LocalDate endDate,
             String inviteCode
     ) {
-        validateDateRange(startDate, endDate);
+//        validateDateRange(startDate, endDate);
         this.leader = leader;
         this.title = title;
         this.destination = destination;
+        this.regionCode=regionCode;
         this.startDate = startDate;
         this.endDate = endDate;
-        this.inviteCode = inviteCode;
         this.status = TravelStatus.BEFORE;
+        this.inviteCode=inviteCode;
         this.isPublic = false;
     }
 

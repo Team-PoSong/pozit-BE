@@ -25,7 +25,9 @@ if ! docker exec pozit-nginx nginx -t; then
 fi
 
 # dangling 이미지 정리
-docker image prune -f
+docker image prune -af
+
+docker builder prune -af
 
 echo "Deployment completed."
 
