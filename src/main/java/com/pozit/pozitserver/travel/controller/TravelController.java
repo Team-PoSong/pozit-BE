@@ -320,6 +320,19 @@ public class TravelController {
                             schema = @Schema(implementation = ErrorResponse.class),
                             examples = {
                                     @ExampleObject(
+                                            name = "입력값 검증 실패",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "COMMON400",
+                                                      "message": "입력값 검증에 실패했습니다.",
+                                                      "result": {
+                                                        "title": "공백일 수 없습니다"
+                                                      }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
                                             name = "여행 기간 역전",
                                             value = """
                                                     {
@@ -402,13 +415,31 @@ public class TravelController {
                     description = "입력값 검증 실패 또는 완료되지 않은 여행의 공개 설정 변경 시도",
                     content = @Content(
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = """
-                                    {
-                                      "isSuccess": false,
-                                      "code": "TRAVEL400_2",
-                                      "message": "완료된 여행만 공개 설정을 변경할 수 있습니다."
-                                    }
-                                    """)
+                            examples = {
+                                    @ExampleObject(
+                                            name = "입력값 검증 실패",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "COMMON400",
+                                                      "message": "입력값 검증에 실패했습니다.",
+                                                      "result": {
+                                                        "isPublic": "널이어서는 안됩니다"
+                                                      }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "완료되지 않은 여행의 공개 설정 변경 시도",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "TRAVEL400_2",
+                                                      "message": "완료된 여행만 공개 설정을 변경할 수 있습니다."
+                                                    }
+                                                    """
+                                    )
+                            }
                     )
             ),
             @ApiResponse(
