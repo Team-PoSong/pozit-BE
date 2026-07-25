@@ -117,4 +117,8 @@ public class Travel {
     public void changeStatus(TravelStatus status) {
         this.status = status;
     }
+
+    public boolean isPubliclyVisible() {
+        return this.status == TravelStatus.DONE && Boolean.TRUE.equals(this.isPublic);
+    }
 }
