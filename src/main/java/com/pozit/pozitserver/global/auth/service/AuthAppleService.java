@@ -1,15 +1,18 @@
 package com.pozit.pozitserver.global.auth.service;
 
-import com.pozit.pozitserver.global.auth.apple.AppleJwtParser;
-import com.pozit.pozitserver.global.auth.apple.jwt.AppleJwtHeader;
-import com.pozit.pozitserver.global.auth.dto.response.apple.ApplePublicKey;
-import com.pozit.pozitserver.global.auth.dto.response.apple.ApplePublicKeyResponse;
+import com.pozit.pozitserver.global.auth.apple.AppleClient;
+import com.pozit.pozitserver.global.auth.apple.jwt.AppleTokenClaims;
+import com.pozit.pozitserver.global.auth.dto.response.LoginTokenResponse;
 import com.pozit.pozitserver.global.auth.ios.AppleIdentityTokenRequest;
-import jakarta.transaction.Transactional;
+import com.pozit.pozitserver.global.auth.jwt.JwtTokenProvider;
+import com.pozit.pozitserver.user.domain.Role;
+import com.pozit.pozitserver.user.domain.SocialProvider;
+import com.pozit.pozitserver.user.domain.User;
+import com.pozit.pozitserver.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -17,36 +20,58 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Slf4j
 public class AuthAppleService {
 
-    private final WebClient webClient;
-    private final AppleJwtParser appleJwtParser;
+    private final AppleClient appleClient;
+    private final UserRepository userRepository;
+    private final JwtTokenProvider jwtTokenProvider;
 
-    public void loginWithAppleIdentityToken(AppleIdentityTokenRequest request){
-        String identityToken=request.identityToken();
+    public LoginTokenResponse loginWithApple(AppleIdentityTokenRequest request) {
+        AppleTokenClaims claims = appleClient.loginWithAppleIdentityToken(request);
+        String nickname = resolveNickname(request, claims);
 
-        // identity token header JWT 디코딩
-        AppleJwtHeader header=appleJwtParser.parseHeader(identityToken);
+        User user = userRepository
+                .findByProviderAndSocialId(SocialProvider.APPLE, claims.socialId())
+                .map(existingUser -> {
+                    existingUser.updateProfile(nickname);
+                    return existingUser;
+                })
+                .orElseGet(() -> userRepository.save(
+                        User.builder()
+                                .provider(SocialProvider.APPLE)
+                                .socialId(claims.socialId())
+                                .nickname(nickname)
+                                .role(Role.USER)
+                                .build()
+                ));
 
-        //apple server의 전체 공개 키 목록 조회
-        ApplePublicKeyResponse publicKeys=getPublicKey();
-
-        //헤더의 key, alg와 일치하는 공개키 선택
-        ApplePublicKey matchedKey=publicKeys.getMatchedKey(
-                header.kid(),
-                header.alg()
+        String accessToken = jwtTokenProvider.createAccessToken(user);
+        return LoginTokenResponse.of(
+                accessToken,
+                jwtTokenProvider.getAccessTokenExpirationSeconds(),
+                user
         );
-
-        //공개키 생성 및 서명 검증
-
     }
 
-    public ApplePublicKeyResponse getPublicKey(){
-        String url="https://appleid.apple.com/auth/keys";
-        return webClient
-                .get()
-                .uri(url)
-                .retrieve()
-                .bodyToMono(ApplePublicKeyResponse.class)
-                .block();
+    private String resolveNickname(
+            AppleIdentityTokenRequest request,
+            AppleTokenClaims claims
+    ) {
+        String requestName = joinName(request.givenName(), request.familyName());
+        if (!requestName.isBlank()) {
+            return requestName;
+        }
 
+        if (claims.email() != null && !claims.email().isBlank()) {
+            int atIndex = claims.email().indexOf("@");
+            return atIndex > 0 ? claims.email().substring(0, atIndex) : claims.email();
+        }
+
+        String socialId = claims.socialId();
+        return "apple_" + socialId.substring(Math.max(0, socialId.length() - 8));
+    }
+
+    private String joinName(String givenName, String familyName) {
+        String firstName = givenName == null ? "" : givenName.trim();
+        String lastName = familyName == null ? "" : familyName.trim();
+        return (firstName + " " + lastName).trim();
     }
 }

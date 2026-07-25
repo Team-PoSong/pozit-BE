@@ -5,6 +5,7 @@ public record ApplePublicKey (
         String kid,
         String use,
         String alg,
-        String n
+        String n,
+        String e
 ){
 }

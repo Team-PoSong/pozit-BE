@@ -1,18 +1,22 @@
 package com.pozit.pozitserver.global.auth.apple;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.pozit.pozitserver.global.auth.apple.jwt.AppleJwtHeader;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
+import java.security.PublicKey;
+import java.security.interfaces.RSAPublicKey;
 import java.util.Base64;
 
 @Component
 @RequiredArgsConstructor
-public class AppleJwtParser {
+public class AppleJwtProvider {
 
     private final ObjectMapper objectMapper;
 
@@ -81,4 +85,26 @@ public class AppleJwtParser {
             );
         }
     }
+
+    public Claims verifyAndParseToken(
+            String identityToken,
+            PublicKey publicKey
+    ){
+        try{
+            if (!(publicKey instanceof RSAPublicKey rsaPublicKey)) {
+                throw new IllegalArgumentException("Apple public key must be RSA");
+            }
+
+            return Jwts.parser()
+                    .verifyWith(rsaPublicKey)
+                    .build()
+                    .parseSignedClaims(identityToken)
+                    .getPayload();
+        }catch(JwtException | IllegalArgumentException e){
+            throw new BusinessException(
+                    ErrorCode.INVALID_APPLE_IDENTITY_TOKEN
+            );
+        }
+    }
+
 }

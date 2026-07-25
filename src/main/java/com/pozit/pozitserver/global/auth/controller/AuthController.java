@@ -6,6 +6,7 @@ import com.pozit.pozitserver.global.auth.ios.AppleIdentityTokenRequest;
 import com.pozit.pozitserver.global.auth.kakao.KakaoProperties;
 import com.pozit.pozitserver.global.auth.service.AuthAppleService;
 import com.pozit.pozitserver.global.auth.service.AuthKakaoService;
+import com.pozit.pozitserver.global.response.ErrorResponse;
 import com.pozit.pozitserver.global.response.SuccessResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -96,11 +97,105 @@ public class AuthController {
     }
 
     @PostMapping("/apple")
-    @Operation(summary="apple iOS 로그인 시, identity token 검증하는 로직")
-    public SuccessResponse<?> appleNativeLogin(
+    @Operation(
+            summary = "애플 네이티브 앱 로그인",
+            description = "Flutter iOS/Android에서 Apple 로그인 후 받은 identityToken을 검증하고 POZIT JWT를 발급합니다. platform 값에 따라 iOS는 bundleId, Android는 serviceId로 audience를 검증하며, nonce claim도 함께 검증합니다."
+    )
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            description = "Apple 로그인 성공 후 클라이언트가 받은 토큰 및 플랫폼 정보",
+            required = true,
+            content = @Content(
+                    schema = @Schema(implementation = AppleIdentityTokenRequest.class),
+                    examples = {
+                            @ExampleObject(
+                                    name = "iOS Flutter 요청",
+                                    value = """
+                                            {
+                                              "identityToken": "eyJraWQiOiJ...",
+                                              "authorizationCode": "c1234567890...",
+                                              "nonce": "d8f3b2a1c9",
+                                              "platform": "IOS",
+                                              "email": "user@example.com",
+                                              "givenName": "Minseo",
+                                              "familyName": "Kim"
+                                            }
+                                            """
+                            ),
+                            @ExampleObject(
+                                    name = "Android Flutter 요청",
+                                    value = """
+                                            {
+                                              "identityToken": "eyJraWQiOiJ...",
+                                              "authorizationCode": "c1234567890...",
+                                              "nonce": "d8f3b2a1c9",
+                                              "platform": "ANDROID",
+                                              "email": "user@example.com",
+                                              "givenName": "Minseo",
+                                              "familyName": "Kim"
+                                            }
+                                            """
+                            )
+                    }
+            )
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "로그인 성공 및 POZIT JWT 발급",
+                    content = @Content(
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "COMMON200",
+                                      "message": "요청에 성공했습니다.",
+                                      "result": {
+                                        "accessToken": "pozit_access_token",
+                                        "tokenType": "Bearer",
+                                        "expiresIn": 1800,
+                                        "userId": 1,
+                                        "nickname": "Minseo Kim"
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "요청값 검증 실패",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON400",
+                                      "message": "입력값 검증에 실패했습니다.",
+                                      "errors": {
+                                        "nonce": "공백일 수 없습니다."
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Apple identityToken 검증 실패",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "APPLELOGIN401_1",
+                                      "message": "유효하지 않은 Apple identity token입니다."
+                                    }
+                                    """)
+                    )
+            )
+    })
+    public SuccessResponse<LoginTokenResponse> appleNativeLogin(
             @Valid @RequestBody AppleIdentityTokenRequest request
             ){
-        return SuccessResponse.ok(authAppleService.loginWithAppleIdentityToken(request));
+        LoginTokenResponse response=authAppleService.loginWithApple(request);
+        return SuccessResponse.ok(response);
 
     }
 }

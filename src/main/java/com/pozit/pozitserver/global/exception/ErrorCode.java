@@ -34,7 +34,9 @@ public enum ErrorCode {
     INVALID_REGION(HttpStatus.BAD_REQUEST,"TRAVEL404_1","존재하지 않는 여행지입니다."),
 
     //Apple
-    INVALID_APPLE_IDENTITY_TOKEN(HttpStatus.INTERNAL_SERVER_ERROR,"APPLELOGIN500_1","identity token 검증 중 오류가 발생했습니다.");
+    INVALID_APPLE_IDENTITY_TOKEN(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_1", "유효하지 않은 Apple identity token입니다."),
+    INVALID_APPLE_TOKEN_ISSUE(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_2", "Apple identity token의 issuer가 올바르지 않습니다."),
+    NOT_FOUND_APPLE_IDENTITY_TOKEN_SUBJECT(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_3", "Apple identity token에서 회원 고유 식별값을 찾을 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
