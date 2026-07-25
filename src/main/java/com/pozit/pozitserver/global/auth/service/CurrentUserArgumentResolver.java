@@ -36,12 +36,18 @@ public class CurrentUserArgumentResolver
             NativeWebRequest webRequest,
             WebDataBinderFactory binderFactory
     ) {
+        CurrentUser currentUserAnnotation = parameter.getParameterAnnotation(CurrentUser.class);
+        boolean required = currentUserAnnotation == null || currentUserAnnotation.required();
+
         Authentication authentication =
                 SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication == null
                 || !authentication.isAuthenticated()
                 || !(authentication.getPrincipal() instanceof Jwt jwt)) {
+            if (!required) {
+                return null;
+            }
             throw new BadCredentialsException("인증 정보가 없습니다.");
         }
 
