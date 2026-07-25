@@ -1,11 +1,12 @@
 package com.pozit.pozitserver.global.auth.controller;
 
-import com.pozit.pozitserver.global.auth.dto.KakaoAccessTokenRequest;
-import com.pozit.pozitserver.global.auth.dto.LoginTokenResponse;
+import com.pozit.pozitserver.global.auth.dto.request.KakaoAccessTokenRequest;
+import com.pozit.pozitserver.global.auth.dto.response.LoginTokenResponse;
+import com.pozit.pozitserver.global.auth.ios.AppleIdentityTokenRequest;
 import com.pozit.pozitserver.global.auth.kakao.KakaoProperties;
-import com.pozit.pozitserver.global.auth.service.AuthService;
+import com.pozit.pozitserver.global.auth.service.AuthAppleService;
+import com.pozit.pozitserver.global.auth.service.AuthKakaoService;
 import com.pozit.pozitserver.global.response.SuccessResponse;
-import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -29,11 +30,12 @@ import java.io.IOException;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-@Tag(name="카카오 로그인 API",description = "카카오 로그인 관련 API 입니다.")
+@Tag(name="소셜 로그인 API",description = "소셜 로그인 관련 API 입니다.")
 public class AuthController {
 
     private final KakaoProperties kakaoProperties;
-    private final AuthService authService;
+    private final AuthKakaoService authService;
+    private final AuthAppleService authAppleService;
 
     @GetMapping("/kakao")
     public void redirectToKakao(
@@ -91,5 +93,14 @@ public class AuthController {
     ) {
         LoginTokenResponse response = authService.loginWithKakaoAccessToken(request.accessToken());
         return SuccessResponse.ok(response);
+    }
+
+    @PostMapping("/apple")
+    @Operation(summary="apple iOS 로그인 시, identity token 검증하는 로직")
+    public SuccessResponse<?> appleNativeLogin(
+            @Valid @RequestBody AppleIdentityTokenRequest request
+            ){
+        return SuccessResponse.ok(authAppleService.loginWithAppleIdentityToken(request));
+
     }
 }
