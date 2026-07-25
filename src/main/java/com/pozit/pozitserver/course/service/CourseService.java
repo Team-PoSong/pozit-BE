@@ -1,15 +1,21 @@
 package com.pozit.pozitserver.course.service;
 
+import com.pozit.pozitserver.course.constant.VisitConstants;
 import com.pozit.pozitserver.course.domain.Course;
 import com.pozit.pozitserver.course.domain.CourseSpot;
+import com.pozit.pozitserver.course.domain.CourseSpotStatus;
 import com.pozit.pozitserver.course.domain.TouristSpot;
 import com.pozit.pozitserver.course.dto.request.CourseSpotUpdateRequest;
+import com.pozit.pozitserver.course.dto.request.LocationRequest;
 import com.pozit.pozitserver.course.dto.response.CourseDetailResponse;
+import com.pozit.pozitserver.course.dto.response.CurrentLocationResponse;
+import com.pozit.pozitserver.course.dto.response.NearbySpotResponse;
 import com.pozit.pozitserver.course.repository.CourseRepository;
 import com.pozit.pozitserver.course.repository.CourseSpotRepository;
 import com.pozit.pozitserver.course.repository.TouristSpotRepository;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
+import com.pozit.pozitserver.global.util.GeoUtils;
 import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
 import com.pozit.pozitserver.travel.domain.Travel;
@@ -23,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -89,6 +96,41 @@ public class CourseService {
                 spot.getStatus().name(),
                 pozingInfos
         );
+    }
+
+    /**
+     * 내 위치와 기준 반경 100m 이내 장소 조회 (해당 여행 멤버만 가능)
+     */
+    public CurrentLocationResponse getNearbySpots(User currentUser, Long courseId, LocationRequest request) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMON404));
+
+        validateMember(course.getTravel(), currentUser);
+
+        List<CourseSpot> spots = courseSpotRepository.findAllByCourseInOrder(List.of(course));
+
+        List<NearbySpotResponse> nearbySpots = spots.stream()
+                .filter(spot -> spot.getStatus() == CourseSpotStatus.NOT_VISITED)
+                .filter(spot -> spot.getTouristSpot().getLatitude() != null && spot.getTouristSpot().getLongitude() != null)
+                .map(spot -> toNearbySpotResponse(spot, request))
+                .filter(response -> response.distanceMeters() <= VisitConstants.VISITING_RADIUS_METERS)
+                .sorted(Comparator.comparingDouble(NearbySpotResponse::distanceMeters))
+                .toList();
+
+        return new CurrentLocationResponse(request.latitude(), request.longitude(), nearbySpots);
+    }
+
+    private NearbySpotResponse toNearbySpotResponse(CourseSpot spot, LocationRequest request) {
+        TouristSpot touristSpot = spot.getTouristSpot();
+
+        double distanceMeters = GeoUtils.calculateDistance(
+                request.latitude(),
+                request.longitude(),
+                touristSpot.getLatitude().doubleValue(),
+                touristSpot.getLongitude().doubleValue()
+        );
+
+        return new NearbySpotResponse(spot.getId(), touristSpot.getId(), touristSpot.getName(), distanceMeters);
     }
 
     /**
