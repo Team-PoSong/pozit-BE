@@ -66,8 +66,7 @@ public class CourseService {
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMON404));
 
-        Travel travel = course.getTravel();
-        if (travel.getStatus() != TravelStatus.DONE || !Boolean.TRUE.equals(travel.getIsPublic())) {
+        if (!course.getTravel().isPubliclyVisible()) {
             throw new BusinessException(ErrorCode.COMMON404);
         }
 

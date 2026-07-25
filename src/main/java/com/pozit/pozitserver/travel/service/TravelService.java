@@ -308,48 +308,16 @@ public class TravelService {
     }
 
     private void validatePublicDone(Travel travel) {
-        if (travel.getStatus() != TravelStatus.DONE || !Boolean.TRUE.equals(travel.getIsPublic())) {
+        if (!travel.isPubliclyVisible()) {
             throw new BusinessException(ErrorCode.TRAVEL_NOT_FOUND);
         }
     }
 
     private PublicTravelDetailResponse buildPublicTravelDetailResponse(Travel travel) {
-        List<TravelMember> members = travelMemberRepository.findAllWithUserByTravelIn(List.of(travel));
-        List<String> tags = travelTagRepository.findAllWithTagByTravelIn(List.of(travel)).stream()
-                .map(travelTag -> travelTag.getTag().getName())
-                .toList();
-        List<Course> courses = courseRepository.findByTravelOrderByDayNumberAsc(travel);
+        TravelAggregate aggregate = collectTravelAggregate(travel);
 
-        List<CourseSpot> allSpots = courses.isEmpty()
-                ? List.of()
-                : courseSpotRepository.findAllByCourseInOrder(courses);
-
-        Map<Long, List<CourseSpot>> spotsByCourseId = new HashMap<>();
-        for (CourseSpot spot : allSpots) {
-            spotsByCourseId
-                    .computeIfAbsent(spot.getCourse().getId(), k -> new ArrayList<>())
-                    .add(spot);
-        }
-
-        List<Pozing> allPozings = allSpots.isEmpty()
-                ? List.of()
-                : pozingRepository.findAllWithUserByCourseSpotIn(allSpots);
-
-        Map<Long, List<Pozing>> pozingsByCourseSpotId = allPozings.stream()
-                .collect(Collectors.groupingBy(p -> p.getCourseSpot().getId()));
-
-        int totalSpotCount = allSpots.size();
-        int totalPozingCount = allPozings.size();
-        int completionRate = calculateCompletionRate(allSpots);
-
-        String leaderNickname = members.stream()
-                .filter(m -> m.getRole() == TravelMemberRole.LEADER)
-                .findFirst()
-                .map(m -> m.getUser().getNickname())
-                .orElse(null);
-
-        List<PublicTravelDetailResponse.CourseInfo> courseInfos = courses.stream()
-                .map(course -> toPublicCourseInfo(course, spotsByCourseId, pozingsByCourseSpotId))
+        List<PublicTravelDetailResponse.CourseInfo> courseInfos = aggregate.courses().stream()
+                .map(course -> toPublicCourseInfo(course, aggregate.spotsByCourseId(), aggregate.pozingsByCourseSpotId()))
                 .toList();
 
         return new PublicTravelDetailResponse(
@@ -361,12 +329,12 @@ public class TravelService {
                 travel.getStatus().name(),
                 travel.getIsPublic(),
                 travel.getBackgroundImageUrl(),
-                leaderNickname,
-                members.size(),
-                completionRate,
-                totalSpotCount,
-                totalPozingCount,
-                tags,
+                aggregate.leaderNickname(),
+                aggregate.members().size(),
+                aggregate.completionRate(),
+                aggregate.totalSpotCount(),
+                aggregate.totalPozingCount(),
+                aggregate.tags(),
                 courseInfos
         );
     }
@@ -412,6 +380,56 @@ public class TravelService {
     }
 
     private TravelDetailResponse buildTravelDetailResponse(Travel travel) {
+        TravelAggregate aggregate = collectTravelAggregate(travel);
+
+        List<TravelDetailResponse.CourseInfo> courseInfos = aggregate.courses().stream()
+                .map(course -> toCourseInfo(course, aggregate.spotsByCourseId(), aggregate.pozingsByCourseSpotId()))
+                .toList();
+
+        List<TravelDetailResponse.MemberInfo> memberInfos = aggregate.members().stream()
+                .map(m -> new TravelDetailResponse.MemberInfo(
+                        m.getUser().getId(),
+                        m.getUser().getNickname(),
+                        m.getRole().name()
+                ))
+                .toList();
+
+        return new TravelDetailResponse(
+                travel.getId(),
+                travel.getTitle(),
+                travel.getDestination(),
+                travel.getStartDate(),
+                travel.getEndDate(),
+                travel.getStatus().name(),
+                travel.getIsPublic(),
+                travel.getBackgroundImageUrl(),
+                travel.getInviteCode(),
+                aggregate.completionRate(),
+                aggregate.totalSpotCount(),
+                aggregate.totalPozingCount(),
+                aggregate.tags(),
+                memberInfos,
+                courseInfos
+        );
+    }
+
+    /**
+     * 여행 상세 조립에 필요한 멤버/태그/코스/스팟/포징 데이터를 한 번에 조회하고 그룹핑한다.
+     * TravelDetailResponse, PublicTravelDetailResponse 조립에서 공통으로 사용한다.
+     */
+    private record TravelAggregate(
+            List<Course> courses,
+            Map<Long, List<CourseSpot>> spotsByCourseId,
+            Map<Long, List<Pozing>> pozingsByCourseSpotId,
+            List<TravelMember> members,
+            List<String> tags,
+            int totalSpotCount,
+            int totalPozingCount,
+            int completionRate,
+            String leaderNickname
+    ) {}
+
+    private TravelAggregate collectTravelAggregate(Travel travel) {
         List<TravelMember> members = travelMemberRepository.findAllWithUserByTravelIn(List.of(travel));
         List<String> tags = travelTagRepository.findAllWithTagByTravelIn(List.of(travel)).stream()
                 .map(travelTag -> travelTag.getTag().getName())
@@ -436,38 +454,22 @@ public class TravelService {
         Map<Long, List<Pozing>> pozingsByCourseSpotId = allPozings.stream()
                 .collect(Collectors.groupingBy(p -> p.getCourseSpot().getId()));
 
-        int totalSpotCount = allSpots.size();
-        int totalPozingCount = allPozings.size();
-        int completionRate = calculateCompletionRate(allSpots);
+        String leaderNickname = members.stream()
+                .filter(m -> m.getRole() == TravelMemberRole.LEADER)
+                .findFirst()
+                .map(m -> m.getUser().getNickname())
+                .orElse(null);
 
-        List<TravelDetailResponse.CourseInfo> courseInfos = courses.stream()
-                .map(course -> toCourseInfo(course, spotsByCourseId, pozingsByCourseSpotId))
-                .toList();
-
-        List<TravelDetailResponse.MemberInfo> memberInfos = members.stream()
-                .map(m -> new TravelDetailResponse.MemberInfo(
-                        m.getUser().getId(),
-                        m.getUser().getNickname(),
-                        m.getRole().name()
-                ))
-                .toList();
-
-        return new TravelDetailResponse(
-                travel.getId(),
-                travel.getTitle(),
-                travel.getDestination(),
-                travel.getStartDate(),
-                travel.getEndDate(),
-                travel.getStatus().name(),
-                travel.getIsPublic(),
-                travel.getBackgroundImageUrl(),
-                travel.getInviteCode(),
-                completionRate,
-                totalSpotCount,
-                totalPozingCount,
+        return new TravelAggregate(
+                courses,
+                spotsByCourseId,
+                pozingsByCourseSpotId,
+                members,
                 tags,
-                memberInfos,
-                courseInfos
+                allSpots.size(),
+                allPozings.size(),
+                calculateCompletionRate(allSpots),
+                leaderNickname
         );
     }
 
