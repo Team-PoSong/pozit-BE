@@ -94,7 +94,7 @@ public class AuthController {
         return SuccessResponse.ok(response);
     }
 
-    @PostMapping("/api/auth/apple/callback")
+    @PostMapping("/apple/callback")
     public Map<String, Object> appleCallback(
             @RequestParam String code,
             @RequestParam("id_token") String identityToken,
