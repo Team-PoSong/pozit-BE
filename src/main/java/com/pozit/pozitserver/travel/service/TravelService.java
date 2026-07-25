@@ -23,7 +23,6 @@ import com.pozit.pozitserver.travel.dto.request.TravelCreateRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelJoinRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelUpdateRequest;
 import com.pozit.pozitserver.travel.dto.request.TravelVisibilityRequest;
-import com.pozit.pozitserver.travel.dto.response.DestinationResponse;
 import com.pozit.pozitserver.travel.dto.response.TravelDetailResponse;
 import com.pozit.pozitserver.travel.dto.response.TravelListResponse;
 import com.pozit.pozitserver.travel.dto.response.*;

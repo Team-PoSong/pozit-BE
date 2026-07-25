@@ -22,7 +22,5 @@ public interface RegionRepository extends JpaRepository<Region,Long> {
             @Param("keyword") String keyword,
             Pageable pageable
     );
-    List<Region> findAllByActiveTrueOrderBySidoAscSigunguAsc();
 
-    Optional<Region> findByIdAndActiveTrue(Long id);
 }

@@ -130,7 +130,7 @@ public class TravelController {
     }
 
     @GetMapping("/invite")
-    @Operation(summary = "여행 초대 코드 생성")
+    @Operation(summary = "여행 초대 코드 조회")
     public SuccessResponse<InviteCodeResponse> makeInvitationCode(
             @Parameter(description = "여행 ID")
             @RequestParam(defaultValue = "1") Long travelId){

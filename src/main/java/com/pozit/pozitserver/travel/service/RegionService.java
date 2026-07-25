@@ -5,7 +5,6 @@ import com.pozit.pozitserver.global.exception.ErrorCode;
 import org.springframework.data.domain.PageRequest;
 import com.pozit.pozitserver.travel.domain.Region;
 import com.pozit.pozitserver.travel.dto.response.RegionSearchResponse;
-import com.pozit.pozitserver.travel.dto.response.RegionResponse;
 import com.pozit.pozitserver.travel.repository.RegionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -53,20 +52,5 @@ public class RegionService {
         );
     }
 
-    public List<RegionResponse> getRegions() {
-        return regionRepository
-                .findAllByActiveTrueOrderBySidoAscSigunguAsc()
-                .stream()
-                .map(RegionResponse::from)
-                .toList();
-    }
-
-    public Region getActiveRegion(Long regionId) {
-        return regionRepository
-                .findByIdAndActiveTrue(regionId)
-                .orElseThrow(() ->
-                        new BusinessException(ErrorCode.INVALID_REGION)
-                );
-    }
 
 }
