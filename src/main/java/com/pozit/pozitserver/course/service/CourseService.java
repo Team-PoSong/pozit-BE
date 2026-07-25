@@ -69,7 +69,30 @@ public class CourseService {
                 .map(spot -> toSpotDetail(spot, pozingsBySpotId.getOrDefault(spot.getId(), List.of())))
                 .toList();
 
-        return new CourseDetailResponse(course.getId(), course.getDayNumber(), course.getDate(), spotDetails);
+        Long initialFocusSpotId = calculateInitialFocusSpotId(spots);
+
+        return new CourseDetailResponse(course.getId(), course.getDayNumber(), course.getDate(), initialFocusSpotId, spotDetails);
+    }
+
+    /**
+     * 처음 진입 시 포커스할 spot을 계산
+     * VISITED 중 orderIndex가 가장 큰 spot의 다음 spot을 지정하고,
+     * VISITED가 없으면 첫 spot을, 전부 VISITED면 마지막 spot을 지정.
+     */
+    private Long calculateInitialFocusSpotId(List<CourseSpot> spots) {
+        if (spots.isEmpty()) {
+            return null;
+        }
+
+        int lastVisitedIndex = -1;
+        for (int i = 0; i < spots.size(); i++) {
+            if (spots.get(i).getStatus() == CourseSpotStatus.VISITED) {
+                lastVisitedIndex = i;
+            }
+        }
+
+        int focusIndex = (lastVisitedIndex == -1) ? 0 : Math.min(lastVisitedIndex + 1, spots.size() - 1);
+        return spots.get(focusIndex).getId();
     }
 
     private CourseDetailResponse.CourseSpotDetail toSpotDetail(CourseSpot spot, List<Pozing> pozings) {

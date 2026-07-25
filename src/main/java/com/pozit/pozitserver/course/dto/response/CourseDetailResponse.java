@@ -7,6 +7,7 @@ public record CourseDetailResponse(
         Long courseId,
         Integer dayNumber,
         LocalDate date,
+        Long initialFocusSpotId,
         List<CourseSpotDetail> spots
 ) {
     public record CourseSpotDetail(
