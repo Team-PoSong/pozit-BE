@@ -1,11 +1,13 @@
 package com.pozit.pozitserver.global.auth.controller;
 
-import com.pozit.pozitserver.global.auth.dto.KakaoAccessTokenRequest;
-import com.pozit.pozitserver.global.auth.dto.LoginTokenResponse;
+import com.pozit.pozitserver.global.auth.dto.request.KakaoAccessTokenRequest;
+import com.pozit.pozitserver.global.auth.dto.response.LoginTokenResponse;
+import com.pozit.pozitserver.global.auth.ios.AppleIdentityTokenRequest;
 import com.pozit.pozitserver.global.auth.kakao.KakaoProperties;
-import com.pozit.pozitserver.global.auth.service.AuthService;
+import com.pozit.pozitserver.global.auth.service.AuthAppleService;
+import com.pozit.pozitserver.global.auth.service.AuthKakaoService;
+import com.pozit.pozitserver.global.response.ErrorResponse;
 import com.pozit.pozitserver.global.response.SuccessResponse;
-import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -25,16 +27,16 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-@Tag(name="카카오 로그인 API",description = "카카오 로그인 관련 API 입니다.")
+@Tag(name="소셜 로그인 API",description = "소셜 로그인 관련 API 입니다.")
 public class AuthController {
 
     private final KakaoProperties kakaoProperties;
-    private final AuthService authService;
+    private final AuthKakaoService authService;
+    private final AuthAppleService authAppleService;
 
     @GetMapping("/kakao")
     public void redirectToKakao(
@@ -94,18 +96,140 @@ public class AuthController {
         return SuccessResponse.ok(response);
     }
 
+
+    @PostMapping("/apple")
+    @Operation(
+            summary = "애플 네이티브 앱 로그인",
+            description = "Flutter iOS/Android에서 Apple 로그인 후 받은 identityToken을 검증하고 POZIT JWT를 발급합니다. platform 값에 따라 iOS는 bundleId, Android는 serviceId로 audience를 검증하며, nonce claim도 함께 검증합니다."
+    )
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            description = "Apple 로그인 성공 후 클라이언트가 받은 토큰 및 플랫폼 정보",
+            required = true,
+            content = @Content(
+                    schema = @Schema(implementation = AppleIdentityTokenRequest.class),
+                    examples = {
+                            @ExampleObject(
+                                    name = "iOS Flutter 요청",
+                                    value = """
+                                            {
+                                              "identityToken": "eyJraWQiOiJ...",
+                                              "authorizationCode": "c1234567890...",
+                                              "nonce": "d8f3b2a1c9",
+                                              "platform": "IOS",
+                                              "email": "user@example.com",
+                                              "givenName": "Minseo",
+                                              "familyName": "Kim"
+                                            }
+                                            """
+                            ),
+                            @ExampleObject(
+                                    name = "Android Flutter 요청",
+                                    value = """
+                                            {
+                                              "identityToken": "eyJraWQiOiJ...",
+                                              "authorizationCode": "c1234567890...",
+                                              "nonce": "d8f3b2a1c9",
+                                              "platform": "ANDROID",
+                                              "email": "user@example.com",
+                                              "givenName": "Minseo",
+                                              "familyName": "Kim"
+                                            }
+                                            """
+                            )
+                    }
+            )
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "로그인 성공 및 POZIT JWT 발급",
+                    content = @Content(
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "COMMON200",
+                                      "message": "요청에 성공했습니다.",
+                                      "result": {
+                                        "accessToken": "pozit_access_token",
+                                        "tokenType": "Bearer",
+                                        "expiresIn": 1800,
+                                        "userId": 1,
+                                        "nickname": "Minseo Kim"
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "요청값 검증 실패",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON400",
+                                      "message": "입력값 검증에 실패했습니다.",
+                                      "errors": {
+                                        "nonce": "공백일 수 없습니다."
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Apple identityToken 검증 실패",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "APPLELOGIN401_1",
+                                      "message": "유효하지 않은 Apple identity token입니다."
+                                    }
+                                    """)
+                    )
+            )
+    })
+    public SuccessResponse<LoginTokenResponse> appleNativeLogin(
+            @Valid @RequestBody AppleIdentityTokenRequest request
+            ){
+        LoginTokenResponse response=authAppleService.loginWithApple(request);
+        return SuccessResponse.ok(response);
+
+    }
+
+
+
     @PostMapping("/apple/callback")
-    public Map<String, Object> appleCallback(
+    public void appleCallback(
             @RequestParam String code,
             @RequestParam("id_token") String identityToken,
-            @RequestParam String state,
-            @RequestParam(required = false) String user
-    ) {
-        return Map.of(
-                "authorizationCode", code,
-                "identityToken", identityToken,
-                "state", state,
-                "user", user == null ? "" : user
-        );
+            @RequestParam(required = false) String state,
+            @RequestParam(required = false) String user,
+            HttpServletResponse response
+    ) throws IOException {
+        UriComponentsBuilder builder = UriComponentsBuilder
+                .fromUriString("intent://callback")
+                .queryParam("code", code)
+                .queryParam("id_token", identityToken);
+
+        if (state != null && !state.isBlank()) {
+            builder.queryParam("state", state);
+        }
+
+        if (user != null && !user.isBlank()) {
+            builder.queryParam("user", user);
+        }
+
+        String redirectUrl = builder
+                .fragment("Intent;package=com.pozit.pozit;scheme=signinwithapple;end")
+                .build()
+                .encode()
+                .toUriString();
+
+        response.sendRedirect(redirectUrl);
     }
+
 }
