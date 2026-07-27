@@ -256,9 +256,17 @@ public class TravelService {
 
     /**
      * 공개 여행 피드 조회 (완료 + 공개 여행만, 로그인 시 본인이 참여한 여행은 제외)
+     * region/startDate·endDate/tagIds/keyword로 추가 검색·필터링이 가능
      */
-    public List<TravelListResponse> getPublicTravels(User currentUser) {
-        List<Travel> travels = travelRepository.findByStatusAndIsPublicOrderByEndDateDescIdDesc(TravelStatus.DONE, true);
+    public List<TravelListResponse> getPublicTravels(
+            User currentUser,
+            String region,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<Long> tagIds,
+            String keyword
+    ) {
+        List<Travel> travels = travelRepository.searchPublicTravels(region, startDate, endDate, tagIds, keyword);
 
         if (currentUser != null) {
             Set<Long> myTravelIds = travelMemberRepository.findAllWithTravelByUser(currentUser).stream()
