@@ -6,6 +6,7 @@ import com.pozit.pozitserver.global.response.SuccessResponse;
 import com.pozit.pozitserver.course.dto.request.CourseSpotUpdateRequest;
 import com.pozit.pozitserver.course.dto.request.LocationRequest;
 import com.pozit.pozitserver.course.dto.response.CourseDetailResponse;
+import com.pozit.pozitserver.course.dto.response.CurrentLocationResponse;
 import com.pozit.pozitserver.course.service.CourseService;
 import com.pozit.pozitserver.user.domain.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,8 +20,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/courses")
@@ -152,12 +151,75 @@ public class CourseController {
         return SuccessResponse.ok();
     }
 
-    @PatchMapping("/{courseId}/current-location")
-    @Operation(summary = "현재 위치 갱신", description = "사용자 현재 GPS 위치를 갱신하고, 관광지 방문 상태를 전이합니다.")
-    public SuccessResponse<Void> updateLocation(
+    @PostMapping("/{courseId}/nearby-spots")
+    @Operation(summary = "현재 위치 기반 주변 미방문 장소 조회", description = "반경 100m 이내 미방문 장소를 계산하여 반환합니다. DB의 방문 상태는 변경하지 않습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "좌표 값 검증 실패",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON400",
+                                      "message": "입력값 검증에 실패했습니다.",
+                                      "result": {
+                                        "latitude": "90.0 이하여야 합니다"
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "인증되지 않은 요청",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON401",
+                                      "message": "인증되지 않은 요청입니다."
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "해당 여행의 멤버가 아니어서 접근 권한이 없음",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON403",
+                                      "message": "접근 권한이 없습니다."
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "존재하지 않는 코스",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON404",
+                                      "message": "요청한 리소스를 찾을 수 없습니다."
+                                    }
+                                    """)
+                    )
+            )
+    })
+    public SuccessResponse<CurrentLocationResponse> getNearbySpots(
+            @CurrentUser User currentUser,
             @Parameter(description = "코스 ID") @PathVariable Long courseId,
-            @RequestBody LocationRequest request) {
-        return SuccessResponse.ok();
+            @Valid @RequestBody LocationRequest request) {
+        return SuccessResponse.ok(courseService.getNearbySpots(currentUser, courseId, request));
     }
 
 }

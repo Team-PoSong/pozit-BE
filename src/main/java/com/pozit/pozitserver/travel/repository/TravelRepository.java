@@ -12,7 +12,9 @@ public interface TravelRepository extends JpaRepository<Travel, Long> {
 
     Optional<Travel> findByInviteCode(String inviteCode);
 
-    Boolean existsByInviteCode(String inviteCode);
+    boolean existsByInviteCode(String inviteCode);
 
     List<Travel> findByLeaderAndStatusNot(User leader, TravelStatus status);
+
+    List<Travel> findByStatusAndIsPublicOrderByEndDateDescIdDesc(TravelStatus status, Boolean isPublic);
 }
