@@ -3,6 +3,7 @@ package com.pozit.pozitserver.global.auth.apple;
 import com.pozit.pozitserver.global.auth.apple.jwt.AppleJwtHeader;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
+import tools.jackson.core.JacksonException;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -35,7 +36,7 @@ public class AppleJwtProvider {
 
             validateHeader(header);
             return header;
-        }catch (IllegalArgumentException exception) {
+        }catch (IllegalArgumentException | JacksonException exception) {
             throw new BusinessException(
                     ErrorCode.INVALID_APPLE_IDENTITY_TOKEN
             );
