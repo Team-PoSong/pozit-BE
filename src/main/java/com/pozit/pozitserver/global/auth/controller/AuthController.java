@@ -27,7 +27,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -204,18 +203,25 @@ public class AuthController {
 
 
     @PostMapping("/apple/callback")
-    public Map<String, Object> appleCallback(
+    public void appleCallback(
             @RequestParam String code,
             @RequestParam("id_token") String identityToken,
             @RequestParam String state,
-            @RequestParam(required = false) String user
-    ) {
-        return Map.of(
-                "authorizationCode", code,
-                "identityToken", identityToken,
-                "state", state,
-                "user", user == null ? "" : user
-        );
+            @RequestParam(required = false) String user,
+            HttpServletResponse response
+    ) throws IOException {
+        String redirectUrl = UriComponentsBuilder
+                .fromUriString("intent://callback")
+                .queryParam("code", code)
+                .queryParam("id_token", identityToken)
+                .queryParam("state", state)
+                .queryParam("user", user == null ? "" : user)
+                .fragment("Intent;package=com.pozit.pozit;scheme=signinwithapple;end")
+                .build()
+                .encode()
+                .toUriString();
+
+        response.sendRedirect(redirectUrl);
     }
 
 }
