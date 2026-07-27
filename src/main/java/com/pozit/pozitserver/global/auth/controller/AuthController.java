@@ -210,12 +210,20 @@ public class AuthController {
             @RequestParam(required = false) String user,
             HttpServletResponse response
     ) throws IOException {
-        String redirectUrl = UriComponentsBuilder
+        UriComponentsBuilder builder = UriComponentsBuilder
                 .fromUriString("intent://callback")
                 .queryParam("code", code)
-                .queryParam("id_token", identityToken)
-                .queryParam("state", state)
-                .queryParam("user", user == null ? "" : user)
+                .queryParam("id_token", identityToken);
+
+        if (state != null && !state.isBlank()) {
+            builder.queryParam("state", state);
+        }
+
+        if (user != null && !user.isBlank()) {
+            builder.queryParam("user", user);
+        }
+
+        String redirectUrl = builder
                 .fragment("Intent;package=com.pozit.pozit;scheme=signinwithapple;end")
                 .build()
                 .encode()
