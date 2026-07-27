@@ -206,7 +206,7 @@ public class AuthController {
     public void appleCallback(
             @RequestParam String code,
             @RequestParam("id_token") String identityToken,
-            @RequestParam String state,
+            @RequestParam(required = false) String state,
             @RequestParam(required = false) String user,
             HttpServletResponse response
     ) throws IOException {
