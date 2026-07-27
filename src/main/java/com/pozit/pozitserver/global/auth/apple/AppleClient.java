@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientException;
 
 import java.security.PublicKey;
 import java.util.Collection;
@@ -82,12 +83,26 @@ public class AppleClient {
     }
 
     public ApplePublicKeyResponse getPublicKey(){
-        return webClientBuilder.build()
-                .get()
-                .uri(appleProperties.publicKeyUri())
-                .retrieve()
-                .bodyToMono(ApplePublicKeyResponse.class)
-                .block();
+        try {
+            ApplePublicKeyResponse response = webClientBuilder.build()
+                    .get()
+                    .uri(appleProperties.publicKeyUri())
+                    .retrieve()
+                    .bodyToMono(ApplePublicKeyResponse.class)
+                    .block();
+
+            if (response == null || response.keys() == null || response.keys().isEmpty()) {
+                log.warn("Apple public key response is empty");
+                throw new BusinessException(ErrorCode.INVALID_APPLE_IDENTITY_TOKEN);
+            }
+
+            return response;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (WebClientException | IllegalArgumentException e) {
+            log.warn("Failed to get Apple public keys from {}", appleProperties.publicKeyUri(), e);
+            throw new BusinessException(ErrorCode.INVALID_APPLE_IDENTITY_TOKEN);
+        }
 
     }
 
@@ -110,6 +125,7 @@ public class AppleClient {
             return;
         }
 
+        log.warn("Apple nonce mismatch. expected={}, actual={}", expectedNonce, actualNonce);
         throw new BusinessException(ErrorCode.INVALID_APPLE_IDENTITY_TOKEN);
     }
 
