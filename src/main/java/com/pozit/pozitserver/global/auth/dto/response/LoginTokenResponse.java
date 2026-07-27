@@ -1,4 +1,4 @@
-package com.pozit.pozitserver.global.auth.dto;
+package com.pozit.pozitserver.global.auth.dto.response;
 
 import com.pozit.pozitserver.user.domain.User;
 

@@ -1,6 +1,6 @@
 package com.pozit.pozitserver.global.auth.service;
 
-import com.pozit.pozitserver.global.auth.dto.LoginTokenResponse;
+import com.pozit.pozitserver.global.auth.dto.response.LoginTokenResponse;
 import com.pozit.pozitserver.global.auth.jwt.JwtTokenProvider;
 import com.pozit.pozitserver.global.auth.kakao.KakaoClient;
 import com.pozit.pozitserver.user.domain.Role;
@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 @Transactional
 @Slf4j
-public class AuthService {
+public class AuthKakaoService {
 
     private final KakaoClient kakaoClient;
     private final UserRepository userRepository;
