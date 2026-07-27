@@ -15,6 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientException;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.util.Collection;
 
@@ -121,12 +124,28 @@ public class AppleClient {
 
     private void validateNonce(Claims claims, String expectedNonce){
         String actualNonce=claims.get("nonce", String.class);
-        if(expectedNonce.equals(actualNonce)){
+        if(expectedNonce.equals(actualNonce) || sha256Hex(expectedNonce).equals(actualNonce)){
             return;
         }
 
         log.warn("Apple nonce mismatch. expected={}, actual={}", expectedNonce, actualNonce);
         throw new BusinessException(ErrorCode.INVALID_APPLE_IDENTITY_TOKEN);
+    }
+
+    private String sha256Hex(String value){
+        try {
+            MessageDigest digest=MessageDigest.getInstance("SHA-256");
+            byte[] hash=digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex=new StringBuilder(hash.length * 2);
+
+            for(byte b : hash){
+                hex.append(String.format("%02x", b));
+            }
+
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new BusinessException(ErrorCode.INVALID_APPLE_IDENTITY_TOKEN);
+        }
     }
 
     private boolean parseBooleanClaim(Object claim){
