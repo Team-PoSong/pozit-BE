@@ -44,11 +44,12 @@ public class TravelRepositoryImpl implements TravelRepositoryCustom {
                 .fetch();
     }
 
+    // 지역 필터는 시/도 단위 선택이지만 Travel.regionCode에는 구 단위까지 세분화되어있을 경우
     private BooleanExpression regionCodeCondition(String regionCode) {
         if (regionCode == null || regionCode.isBlank()) {
             return null;
         }
-        return QTravel.travel.regionCode.eq(regionCode);
+        return QTravel.travel.regionCode.startsWith(regionCode);
     }
 
     private BooleanExpression dateRangeCondition(LocalDate startDate, LocalDate endDate) {
