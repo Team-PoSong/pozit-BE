@@ -15,5 +15,6 @@ public record TravelListResponse(
         Integer completionRate,
         List<String> tags,
         String leaderNickname,
-        Integer memberCount
+        Integer memberCount,
+        Integer likeCount
 ) {}

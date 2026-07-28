@@ -8,6 +8,7 @@ import com.pozit.pozitserver.course.repository.CourseSpotRepository;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
 import com.pozit.pozitserver.global.util.RandomUtil;
+import com.pozit.pozitserver.like.repository.LikeRepository;
 import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
 import com.pozit.pozitserver.tag.domain.Tag;
@@ -26,6 +27,7 @@ import com.pozit.pozitserver.travel.dto.request.TravelVisibilityRequest;
 import com.pozit.pozitserver.travel.dto.response.InviteCodeResponse;
 import com.pozit.pozitserver.travel.dto.response.JoinResponse;
 import com.pozit.pozitserver.travel.dto.response.PublicTravelDetailResponse;
+import com.pozit.pozitserver.travel.dto.response.PublicTravelListResponse;
 import com.pozit.pozitserver.travel.dto.response.TravelCreateResponse;
 import com.pozit.pozitserver.travel.dto.response.TravelDetailResponse;
 import com.pozit.pozitserver.travel.dto.response.TravelJoinResponse;
@@ -62,6 +64,7 @@ public class TravelService {
     private final CourseRepository courseRepository;
     private final CourseSpotRepository courseSpotRepository;
     private final PozingRepository pozingRepository;
+    private final LikeRepository likeRepository;
 
 
     /**
@@ -191,29 +194,7 @@ public class TravelService {
                 .sorted(Comparator.comparing(Travel::getStartDate))
                 .toList();
 
-        if (travels.isEmpty()) {
-            return List.of();
-        }
-
-        Map<Long, List<TravelMember>> membersByTravelId = travelMemberRepository
-                .findAllWithUserByTravelIn(travels).stream()
-                .collect(Collectors.groupingBy(m -> m.getTravel().getId()));
-
-        Map<Long, List<TravelTag>> tagsByTravelId = travelTagRepository
-                .findAllWithTagByTravelIn(travels).stream()
-                .collect(Collectors.groupingBy(t -> t.getTravel().getId()));
-
-        List<Course> allCourses = courseRepository.findByTravelInOrderByDayNumberAsc(travels);
-        Map<Long, List<CourseSpot>> spotsByTravelId = getSpotsGroupedByTravelId(allCourses);
-
-        return travels.stream()
-                .map(travel -> toTravelListResponse(
-                        travel,
-                        membersByTravelId.getOrDefault(travel.getId(), List.of()),
-                        tagsByTravelId.getOrDefault(travel.getId(), List.of()),
-                        spotsByTravelId.getOrDefault(travel.getId(), List.of())
-                ))
-                .toList();
+        return buildTravelListResponses(travels);
     }
 
     public List<TagResponse> getTravelTags(User currentUser, Long travelId) {
@@ -228,20 +209,112 @@ public class TravelService {
                 .toList();
     }
 
-    private TravelListResponse toTravelListResponse(
-            Travel travel,
-            List<TravelMember> members,
-            List<TravelTag> travelTags,
-            List<CourseSpot> spots
-    ) {
-        List<String> tags = travelTags.stream().map(t -> t.getTag().getName()).toList();
-        int completionRate = calculateCompletionRate(spots);
+    /**
+     * 여행 목록 응답을 조립한다. 내 여행 목록 조회에서 사용한다.
+     */
+    public List<TravelListResponse> buildTravelListResponses(List<Travel> travels) {
+        if (travels.isEmpty()) {
+            return List.of();
+        }
 
-        String leaderNickname = members.stream()
+        ListAggregate aggregate = collectListAggregate(travels);
+        Map<Long, Integer> likeCountByTravelId = getLikeCountByTravelId(travels);
+
+        return travels.stream()
+                .map(travel -> toTravelListResponse(
+                        travel,
+                        aggregate.membersByTravelId().getOrDefault(travel.getId(), List.of()),
+                        aggregate.tagsByTravelId().getOrDefault(travel.getId(), List.of()),
+                        aggregate.spotsByTravelId().getOrDefault(travel.getId(), List.of()),
+                        likeCountByTravelId.getOrDefault(travel.getId(), 0)
+                ))
+                .toList();
+    }
+
+    /**
+     * 공개 여행 목록 응답을 조립한다. 공개 피드, 찜 목록 조회에서 공통으로 사용한다.
+     * currentUser가 null이면(비로그인) isLiked는 항상 false로 채운다.
+     */
+    public List<PublicTravelListResponse> buildPublicTravelListResponses(List<Travel> travels, User currentUser) {
+        if (travels.isEmpty()) {
+            return List.of();
+        }
+
+        ListAggregate aggregate = collectListAggregate(travels);
+        Map<Long, Integer> likeCountByTravelId = getLikeCountByTravelId(travels);
+        Set<Long> likedTravelIds = getLikedTravelIds(travels, currentUser);
+
+        return travels.stream()
+                .map(travel -> toPublicTravelListResponse(
+                        travel,
+                        aggregate.membersByTravelId().getOrDefault(travel.getId(), List.of()),
+                        aggregate.tagsByTravelId().getOrDefault(travel.getId(), List.of()),
+                        aggregate.spotsByTravelId().getOrDefault(travel.getId(), List.of()),
+                        likeCountByTravelId.getOrDefault(travel.getId(), 0),
+                        likedTravelIds.contains(travel.getId())
+                ))
+                .toList();
+    }
+
+    /**
+     * 목록 조립에 필요한 멤버/태그/코스 스팟을 travelId 기준으로 한 번에 조회하고 그룹핑한다.
+     */
+    private record ListAggregate(
+            Map<Long, List<TravelMember>> membersByTravelId,
+            Map<Long, List<TravelTag>> tagsByTravelId,
+            Map<Long, List<CourseSpot>> spotsByTravelId
+    ) {}
+
+    private ListAggregate collectListAggregate(List<Travel> travels) {
+        Map<Long, List<TravelMember>> membersByTravelId = travelMemberRepository
+                .findAllWithUserByTravelIn(travels).stream()
+                .collect(Collectors.groupingBy(m -> m.getTravel().getId()));
+
+        Map<Long, List<TravelTag>> tagsByTravelId = travelTagRepository
+                .findAllWithTagByTravelIn(travels).stream()
+                .collect(Collectors.groupingBy(t -> t.getTravel().getId()));
+
+        List<Course> allCourses = courseRepository.findByTravelInOrderByDayNumberAsc(travels);
+        Map<Long, List<CourseSpot>> spotsByTravelId = getSpotsGroupedByTravelId(allCourses);
+
+        return new ListAggregate(membersByTravelId, tagsByTravelId, spotsByTravelId);
+    }
+
+    private Map<Long, Integer> getLikeCountByTravelId(List<Travel> travels) {
+        return likeRepository.countByTravelIn(travels).stream()
+                .collect(Collectors.toMap(
+                        LikeRepository.TravelLikeCount::getTravelId,
+                        count -> count.getLikeCount().intValue()
+                ));
+    }
+
+    private Set<Long> getLikedTravelIds(List<Travel> travels, User currentUser) {
+        if (currentUser == null) {
+            return Set.of();
+        }
+        return likeRepository.findByUserAndTravelIn(currentUser, travels).stream()
+                .map(like -> like.getTravel().getId())
+                .collect(Collectors.toSet());
+    }
+
+    private String leaderNicknameOf(List<TravelMember> members) {
+        return members.stream()
                 .filter(m -> m.getRole() == TravelMemberRole.LEADER)
                 .findFirst()
                 .map(m -> m.getUser().getNickname())
                 .orElse(null);
+    }
+
+    private TravelListResponse toTravelListResponse(
+            Travel travel,
+            List<TravelMember> members,
+            List<TravelTag> travelTags,
+            List<CourseSpot> spots,
+            int likeCount
+    ) {
+        List<String> tags = travelTags.stream().map(t -> t.getTag().getName()).toList();
+        int completionRate = calculateCompletionRate(spots);
+        String leaderNickname = leaderNicknameOf(members);
 
         return new TravelListResponse(
                 travel.getId(),
@@ -255,7 +328,38 @@ public class TravelService {
                 completionRate,
                 tags,
                 leaderNickname,
-                members.size()
+                members.size(),
+                likeCount
+        );
+    }
+
+    private PublicTravelListResponse toPublicTravelListResponse(
+            Travel travel,
+            List<TravelMember> members,
+            List<TravelTag> travelTags,
+            List<CourseSpot> spots,
+            int likeCount,
+            boolean isLiked
+    ) {
+        List<String> tags = travelTags.stream().map(t -> t.getTag().getName()).toList();
+        int completionRate = calculateCompletionRate(spots);
+        String leaderNickname = leaderNicknameOf(members);
+
+        return new PublicTravelListResponse(
+                travel.getId(),
+                travel.getTitle(),
+                travel.getDestination(),
+                travel.getStartDate(),
+                travel.getEndDate(),
+                travel.getStatus().name(),
+                travel.getIsPublic(),
+                travel.getBackgroundImageUrl(),
+                completionRate,
+                tags,
+                leaderNickname,
+                members.size(),
+                likeCount,
+                isLiked
         );
     }
 
@@ -275,7 +379,7 @@ public class TravelService {
      * 공개 여행 피드 조회 (완료 + 공개 여행만, 로그인 시 본인이 참여한 여행은 제외)
      * regionCode/startDate·endDate/tagIds/keyword로 추가 검색·필터링이 가능
      */
-    public List<TravelListResponse> getPublicTravels(
+    public List<PublicTravelListResponse> getPublicTravels(
             User currentUser,
             String regionCode,
             LocalDate startDate,
@@ -296,29 +400,7 @@ public class TravelService {
                     .toList();
         }
 
-        if (travels.isEmpty()) {
-            return List.of();
-        }
-
-        Map<Long, List<TravelMember>> membersByTravelId = travelMemberRepository
-                .findAllWithUserByTravelIn(travels).stream()
-                .collect(Collectors.groupingBy(m -> m.getTravel().getId()));
-
-        Map<Long, List<TravelTag>> tagsByTravelId = travelTagRepository
-                .findAllWithTagByTravelIn(travels).stream()
-                .collect(Collectors.groupingBy(t -> t.getTravel().getId()));
-
-        List<Course> allCourses = courseRepository.findByTravelInOrderByDayNumberAsc(travels);
-        Map<Long, List<CourseSpot>> spotsByTravelId = getSpotsGroupedByTravelId(allCourses);
-
-        return travels.stream()
-                .map(travel -> toTravelListResponse(
-                        travel,
-                        membersByTravelId.getOrDefault(travel.getId(), List.of()),
-                        tagsByTravelId.getOrDefault(travel.getId(), List.of()),
-                        spotsByTravelId.getOrDefault(travel.getId(), List.of())
-                ))
-                .toList();
+        return buildPublicTravelListResponses(travels, currentUser);
     }
 
     private void validateSearchPeriod(LocalDate startDate, LocalDate endDate) {
@@ -335,13 +417,13 @@ public class TravelService {
      * 공개 여행 상세 조회 (완료 + 공개 여행만, 비로그인 접근 가능)
      * 초대 코드와 멤버 개인 정보(userId)는 노출하지 않는 전용 응답을 사용한다.
      */
-    public PublicTravelDetailResponse getPublicTravelDetail(Long travelId) {
+    public PublicTravelDetailResponse getPublicTravelDetail(Long travelId, User currentUser) {
         Travel travel = travelRepository.findById(travelId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
 
         validatePublicDone(travel);
 
-        return buildPublicTravelDetailResponse(travel);
+        return buildPublicTravelDetailResponse(travel, currentUser);
     }
 
     private void validatePublicDone(Travel travel) {
@@ -350,12 +432,15 @@ public class TravelService {
         }
     }
 
-    private PublicTravelDetailResponse buildPublicTravelDetailResponse(Travel travel) {
+    private PublicTravelDetailResponse buildPublicTravelDetailResponse(Travel travel, User currentUser) {
         TravelAggregate aggregate = collectTravelAggregate(travel);
 
         List<PublicTravelDetailResponse.CourseInfo> courseInfos = aggregate.courses().stream()
                 .map(course -> toPublicCourseInfo(course, aggregate.spotsByCourseId(), aggregate.pozingsByCourseSpotId()))
                 .toList();
+
+        int likeCount = (int) likeRepository.countByTravel(travel);
+        boolean isLiked = currentUser != null && likeRepository.existsByTravelAndUser(travel, currentUser);
 
         return new PublicTravelDetailResponse(
                 travel.getId(),
@@ -372,6 +457,8 @@ public class TravelService {
                 aggregate.totalSpotCount(),
                 aggregate.totalPozingCount(),
                 aggregate.tags(),
+                likeCount,
+                isLiked,
                 courseInfos
         );
     }
