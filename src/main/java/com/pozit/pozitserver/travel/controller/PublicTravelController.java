@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -32,13 +33,47 @@ public class PublicTravelController {
     private final CourseService courseService;
 
     @GetMapping("/travels")
-    @Operation(summary = "공개 여행 피드 조회", description = "공개 설정된 완료 여행 목록을 조회합니다. 로그인한 사용자의 경우 본인이 리더 또는 멤버로 참여한 여행은 제외됩니다. 비로그인 상태에서도 조회할 수 있습니다.")
+    @Operation(summary = "공개 여행 피드 조회", description = "공개 설정된 완료 여행 목록을 지역/기간/태그/키워드로 검색·필터링하여 조회합니다. 로그인한 사용자의 경우 본인이 리더 또는 멤버로 참여한 여행은 제외됩니다. 비로그인 상태에서도 조회할 수 있습니다.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 성공")
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "검색 조건 오류 (startDate/endDate 중 하나만 전달했거나, startDate가 endDate보다 늦은 경우)",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = {
+                                    @ExampleObject(
+                                            name = "날짜 한쪽만 전달",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "TRAVEL400_8",
+                                                      "message": "검색 기간이 올바르지 않습니다."
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "시작일이 종료일 이후",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "TRAVEL400_1",
+                                                      "message": "종료일은 시작일보다 빠를 수 없습니다."
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            )
     })
     public SuccessResponse<List<TravelListResponse>> getPublicTravels(
-            @CurrentUser(required = false) User currentUser) {
-        return SuccessResponse.ok(travelService.getPublicTravels(currentUser));
+            @CurrentUser(required = false) User currentUser,
+            @Parameter(description = "지역 코드 (시/도 단위 접두사 매칭, 미전달 시 전체 지역)") @RequestParam(required = false) String regionCode,
+            @Parameter(description = "여행 기간 시작일 (endDate와 함께 있어야 적용)") @RequestParam(required = false) LocalDate startDate,
+            @Parameter(description = "여행 기간 종료일 (startDate와 함께 있어야 적용)") @RequestParam(required = false) LocalDate endDate,
+            @Parameter(description = "태그 ID 목록 (모두 포함하는 여행 조회)") @RequestParam(required = false) List<Long> tagIds,
+            @Parameter(description = "키워드 (여행명/지역명/코스 관광지명 부분 일치)") @RequestParam(required = false) String keyword) {
+        return SuccessResponse.ok(travelService.getPublicTravels(currentUser, regionCode, startDate, endDate, tagIds, keyword));
     }
 
     @GetMapping("/travels/{travelId}")
