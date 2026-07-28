@@ -39,12 +39,12 @@ public class PublicTravelController {
     })
     public SuccessResponse<List<TravelListResponse>> getPublicTravels(
             @CurrentUser(required = false) User currentUser,
-            @Parameter(description = "지역명 (\"전국\" 또는 미전달 시 전체 지역)") @RequestParam(required = false) String region,
+            @Parameter(description = "지역 코드 (미전달 시 전체 지역)") @RequestParam(required = false) String regionCode,
             @Parameter(description = "여행 기간 시작일 (endDate와 함께 있어야 적용)") @RequestParam(required = false) LocalDate startDate,
             @Parameter(description = "여행 기간 종료일 (startDate와 함께 있어야 적용)") @RequestParam(required = false) LocalDate endDate,
             @Parameter(description = "태그 ID 목록 (모두 포함하는 여행 조회)") @RequestParam(required = false) List<Long> tagIds,
             @Parameter(description = "키워드 (여행명/지역명/코스 관광지명 부분 일치)") @RequestParam(required = false) String keyword) {
-        return SuccessResponse.ok(travelService.getPublicTravels(currentUser, region, startDate, endDate, tagIds, keyword));
+        return SuccessResponse.ok(travelService.getPublicTravels(currentUser, regionCode, startDate, endDate, tagIds, keyword));
     }
 
     @GetMapping("/travels/{travelId}")

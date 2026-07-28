@@ -18,13 +18,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TravelRepositoryImpl implements TravelRepositoryCustom {
 
-    private static final String NATIONWIDE_REGION = "전국";
-
     private final JPAQueryFactory queryFactory;
 
     @Override
     public List<Travel> searchPublicTravels(
-            String region,
+            String regionCode,
             LocalDate startDate,
             LocalDate endDate,
             List<Long> tagIds,
@@ -37,7 +35,7 @@ public class TravelRepositoryImpl implements TravelRepositoryCustom {
                 .where(
                         travel.status.eq(TravelStatus.DONE),
                         travel.isPublic.isTrue(),
-                        regionCondition(region),
+                        regionCodeCondition(regionCode),
                         dateRangeCondition(startDate, endDate),
                         tagsCondition(tagIds),
                         keywordCondition(keyword)
@@ -46,11 +44,11 @@ public class TravelRepositoryImpl implements TravelRepositoryCustom {
                 .fetch();
     }
 
-    private BooleanExpression regionCondition(String region) {
-        if (region == null || region.isBlank() || region.equals(NATIONWIDE_REGION)) {
+    private BooleanExpression regionCodeCondition(String regionCode) {
+        if (regionCode == null || regionCode.isBlank()) {
             return null;
         }
-        return QTravel.travel.destination.contains(region);
+        return QTravel.travel.regionCode.eq(regionCode);
     }
 
     private BooleanExpression dateRangeCondition(LocalDate startDate, LocalDate endDate) {
@@ -65,15 +63,16 @@ public class TravelRepositoryImpl implements TravelRepositoryCustom {
             return null;
         }
 
+        List<Long> distinctTagIds = tagIds.stream().distinct().toList();
         QTravelTag travelTag = QTravelTag.travelTag;
 
         return QTravel.travel.id.in(
                 JPAExpressions
                         .select(travelTag.travel.id)
                         .from(travelTag)
-                        .where(travelTag.tag.id.in(tagIds))
+                        .where(travelTag.tag.id.in(distinctTagIds))
                         .groupBy(travelTag.travel.id)
-                        .having(travelTag.tag.id.countDistinct().eq((long) tagIds.size()))
+                        .having(travelTag.tag.id.countDistinct().eq((long) distinctTagIds.size()))
         );
     }
 

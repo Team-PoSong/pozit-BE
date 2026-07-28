@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface TravelRepositoryCustom {
     List<Travel> searchPublicTravels(
-            String region,
+            String regionCode,
             LocalDate startDate,
             LocalDate endDate,
             List<Long> tagIds,
