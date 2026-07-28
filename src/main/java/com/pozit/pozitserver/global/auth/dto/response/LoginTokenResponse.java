@@ -7,20 +7,23 @@ public record LoginTokenResponse(
         String tokenType,
         long expiresIn,
         Long userId,
-        String nickname
+        String nickname,
+        boolean isNewUser
 ) {
 
     public static LoginTokenResponse of(
             String accessToken,
             long expiresIn,
-            User user
+            User user,
+            boolean isNewUser
     ) {
         return new LoginTokenResponse(
                 accessToken,
                 "Bearer",
                 expiresIn,
                 user.getId(),
-                user.getNickname()
+                user.getNickname(),
+                isNewUser
         );
     }
 }

@@ -14,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -35,24 +37,21 @@ public class AuthKakaoService {
         KakaoUserResponse kakaoUser =
                 kakaoClient.requestUserInfo(kakaoAccessToken);
 
-        User user = userRepository
-                .findByProviderAndSocialId(
-                        SocialProvider.KAKAO,
-                        kakaoUser.id().toString()
-                )
+        Optional<User> optionalUser = userRepository.findByProviderAndSocialId(
+                SocialProvider.KAKAO,
+                kakaoUser.id().toString()
+        );
+
+        boolean isNewUser = optionalUser.isEmpty();
+        User user = optionalUser
                 .map(existingUser -> {
-                    existingUser.updateProfile(
-//                            kakaoUser.getEmail(),
-                            kakaoUser.getNickname()
-                    );
+                    existingUser.updateProfile(kakaoUser.getNickname());
                     return existingUser;
                 })
                 .orElseGet(() -> userRepository.save(
-
                         User.builder()
                                 .provider(SocialProvider.KAKAO)
                                 .socialId(kakaoUser.id().toString())
-//                                .email(kakaoUser.getEmail())
                                 .nickname(kakaoUser.getNickname())
                                 .role(Role.USER)
                                 .build()
@@ -62,7 +61,8 @@ public class AuthKakaoService {
         return LoginTokenResponse.of(
                 accessToken,
                 jwtTokenProvider.getAccessTokenExpirationSeconds(),
-                user
+                user,
+                isNewUser
         );
     }
 }
