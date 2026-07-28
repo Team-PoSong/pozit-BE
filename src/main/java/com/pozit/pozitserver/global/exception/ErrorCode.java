@@ -32,6 +32,7 @@ public enum ErrorCode {
 
     // Course
     DUPLICATE_COURSE_SPOT(HttpStatus.BAD_REQUEST, "COURSE400_1", "중복된 관광지 ID가 포함되어 있습니다."),
+    SEARCHED_TOURIST_SPOT_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_1", "검색 결과에서 선택한 관광지를 찾을 수 없습니다. 다시 검색해주세요."),
     INVALID_REGION(HttpStatus.BAD_REQUEST,"TRAVEL404_1","존재하지 않는 여행지입니다."),
 
     //Apple

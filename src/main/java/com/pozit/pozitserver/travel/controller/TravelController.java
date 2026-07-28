@@ -49,7 +49,19 @@ public class TravelController {
                                       "code": "COMMON200",
                                       "message": "요청에 성공했습니다.",
                                       "result": {
-                                        "travelId": 1
+                                        "travelId": 1,
+                                        "courses": [
+                                          {
+                                            "courseId": 1,
+                                            "dayNumber": 1,
+                                            "date": "2026-08-01"
+                                          },
+                                          {
+                                            "courseId": 2,
+                                            "dayNumber": 2,
+                                            "date": "2026-08-02"
+                                          }
+                                        ]
                                       }
                                     }
                                     """)

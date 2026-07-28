@@ -1,7 +1,12 @@
 package com.pozit.pozitserver.course.dto.response.coursespot;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public record PlaceSearchItemResponse(
+        @JsonProperty("contentid")
         String contentId,
+
+        @JsonProperty("contenttypeid")
         String contentTypeId,
         String title,
         String address,

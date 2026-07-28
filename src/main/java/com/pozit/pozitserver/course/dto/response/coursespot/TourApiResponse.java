@@ -31,7 +31,10 @@ public record TourApiResponse (
         }
 
         public record Item(
+                @JsonProperty("contentid")
                 String contentId,
+
+                @JsonProperty("contenttypeid")
                 String contentTypeId,
                 String title,
                 String addr1,
@@ -43,7 +46,13 @@ public record TourApiResponse (
                 String tel,
 
                 @JsonProperty("cpyrhtDivCd")
-                String copyrightType
+                String copyrightType,
+
+                @JsonProperty("lDongRegnCd")
+                String legalDongRegionCode,
+
+                @JsonProperty("lDongSignguCd")
+                String legalDongSigunguCode
         ){
         }
     }

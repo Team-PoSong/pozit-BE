@@ -99,7 +99,24 @@ public class TravelService {
                 .role(TravelMemberRole.LEADER)
                 .build();
         travelMemberRepository.save(travelMember);
-        return TravelCreateResponse.from(savedTravel);
+
+        List<Course> courses = createCourses(savedTravel);
+        return TravelCreateResponse.from(savedTravel, courses);
+    }
+
+    private List<Course> createCourses(Travel travel) {
+        int dayCount = (int) ChronoUnit.DAYS.between(travel.getStartDate(), travel.getEndDate()) + 1;
+        List<Course> courses = new ArrayList<>();
+
+        for (int day = 1; day <= dayCount; day++) {
+            courses.add(Course.builder()
+                    .travel(travel)
+                    .dayNumber(day)
+                    .date(travel.getStartDate().plusDays(day - 1L))
+                    .build());
+        }
+
+        return courseRepository.saveAll(courses);
     }
 
     private String generateUniqueInviteCode(){
