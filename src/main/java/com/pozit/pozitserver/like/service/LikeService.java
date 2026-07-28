@@ -11,6 +11,7 @@ import com.pozit.pozitserver.travel.repository.TravelRepository;
 import com.pozit.pozitserver.travel.service.TravelService;
 import com.pozit.pozitserver.user.domain.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,8 @@ import java.util.List;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class LikeService {
+
+    private static final String LIKE_UNIQUE_CONSTRAINT_NAME = "uk_like_travel_user";
 
     private final LikeRepository likeRepository;
     private final TravelRepository travelRepository;
@@ -50,7 +53,20 @@ public class LikeService {
                 .travel(travel)
                 .user(user)
                 .build();
-        likeRepository.save(like);
+        
+        try {
+            likeRepository.saveAndFlush(like);
+        } catch (DataIntegrityViolationException e) {
+            if (!isLikeUniqueConstraintViolation(e)) {
+                throw e;
+            }
+            throw new BusinessException(ErrorCode.ALREADY_LIKED);
+        }
+    }
+
+    private boolean isLikeUniqueConstraintViolation(DataIntegrityViolationException e) {
+        Throwable cause = e.getMostSpecificCause();
+        return cause.getMessage() != null && cause.getMessage().contains(LIKE_UNIQUE_CONSTRAINT_NAME);
     }
 
     /**
