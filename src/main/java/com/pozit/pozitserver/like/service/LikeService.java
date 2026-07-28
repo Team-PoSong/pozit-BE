@@ -35,7 +35,7 @@ public class LikeService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
 
         if (!travel.isPubliclyVisible()) {
-            throw new BusinessException(ErrorCode.COMMON404);
+            throw new BusinessException(ErrorCode.TRAVEL_NOT_FOUND);
         }
 
         if (travelMemberRepository.existsByTravelAndUser(travel, user)) {

@@ -139,16 +139,31 @@ public class LikeController {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "찜한 적 없는 여행",
+                    description = "존재하지 않는 여행이거나 찜한 적 없는 여행",
                     content = @Content(
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = """
-                                    {
-                                      "isSuccess": false,
-                                      "code": "LIKE404_1",
-                                      "message": "찜한 여행을 찾을 수 없습니다."
-                                    }
-                                    """)
+                            examples = {
+                                    @ExampleObject(
+                                            name = "존재하지 않는 여행",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "TRAVEL404_1",
+                                                      "message": "해당 여행을 찾을 수 없습니다."
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "찜한 적 없는 여행",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "LIKE404_1",
+                                                      "message": "찜한 여행을 찾을 수 없습니다."
+                                                    }
+                                                    """
+                                    )
+                            }
                     )
             )
     })
