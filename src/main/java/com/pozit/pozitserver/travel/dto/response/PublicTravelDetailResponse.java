@@ -19,6 +19,8 @@ public record PublicTravelDetailResponse(
         Integer totalSpotCount,
         Integer totalPozingCount,
         List<String> tags,
+        Integer likeCount,
+        Boolean isLiked,
         List<CourseInfo> courses
 ) {
     public record CourseInfo(

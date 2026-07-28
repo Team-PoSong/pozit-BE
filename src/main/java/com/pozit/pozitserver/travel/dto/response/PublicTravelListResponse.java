@@ -3,7 +3,7 @@ package com.pozit.pozitserver.travel.dto.response;
 import java.time.LocalDate;
 import java.util.List;
 
-public record TravelListResponse(
+public record PublicTravelListResponse(
         Long travelId,
         String title,
         String destination,
@@ -16,5 +16,6 @@ public record TravelListResponse(
         List<String> tags,
         String leaderNickname,
         Integer memberCount,
-        Integer likeCount
+        Integer likeCount,
+        Boolean isLiked
 ) {}
