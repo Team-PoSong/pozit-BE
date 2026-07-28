@@ -35,6 +35,11 @@ public enum ErrorCode {
     SEARCHED_TOURIST_SPOT_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_1", "검색 결과에서 선택한 관광지를 찾을 수 없습니다. 다시 검색해주세요."),
     INVALID_REGION(HttpStatus.BAD_REQUEST,"TRAVEL404_1","존재하지 않는 여행지입니다."),
 
+    // Like
+    ALREADY_LIKED(HttpStatus.BAD_REQUEST, "LIKE400_1", "이미 찜한 여행입니다."),
+    CANNOT_LIKE_OWN_TRAVEL(HttpStatus.BAD_REQUEST, "LIKE400_2", "본인이 참여한 여행은 찜할 수 없습니다."),
+    LIKE_NOT_FOUND(HttpStatus.NOT_FOUND, "LIKE404_1", "찜한 여행을 찾을 수 없습니다."),
+
     //Apple
     INVALID_APPLE_IDENTITY_TOKEN(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_1", "유효하지 않은 Apple identity token입니다."),
     INVALID_APPLE_TOKEN_ISSUE(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_2", "Apple identity token의 issuer가 올바르지 않습니다."),
