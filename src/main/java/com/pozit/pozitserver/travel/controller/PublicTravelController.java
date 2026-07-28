@@ -6,7 +6,7 @@ import com.pozit.pozitserver.global.auth.annotation.CurrentUser;
 import com.pozit.pozitserver.global.response.ErrorResponse;
 import com.pozit.pozitserver.global.response.SuccessResponse;
 import com.pozit.pozitserver.travel.dto.response.PublicTravelDetailResponse;
-import com.pozit.pozitserver.travel.dto.response.TravelListResponse;
+import com.pozit.pozitserver.travel.dto.response.PublicTravelListResponse;
 import com.pozit.pozitserver.travel.service.TravelService;
 import com.pozit.pozitserver.user.domain.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -66,7 +66,7 @@ public class PublicTravelController {
                     )
             )
     })
-    public SuccessResponse<List<TravelListResponse>> getPublicTravels(
+    public SuccessResponse<List<PublicTravelListResponse>> getPublicTravels(
             @CurrentUser(required = false) User currentUser,
             @Parameter(description = "지역 코드 (시/도 단위 접두사 매칭, 미전달 시 전체 지역)") @RequestParam(required = false) String regionCode,
             @Parameter(description = "여행 기간 시작일 (endDate와 함께 있어야 적용)") @RequestParam(required = false) LocalDate startDate,
@@ -96,8 +96,9 @@ public class PublicTravelController {
             )
     })
     public SuccessResponse<PublicTravelDetailResponse> getPublicTravelDetail(
+            @CurrentUser(required = false) User currentUser,
             @Parameter(description = "여행 ID") @PathVariable Long travelId) {
-        return SuccessResponse.ok(travelService.getPublicTravelDetail(travelId));
+        return SuccessResponse.ok(travelService.getPublicTravelDetail(travelId, currentUser));
     }
 
     @GetMapping("/courses/{courseId}")

@@ -1,17 +1,21 @@
-package com.pozit.pozitserver.like.dto.response;
+package com.pozit.pozitserver.travel.dto.response;
 
 import java.time.LocalDate;
 import java.util.List;
 
-public record LikeListResponse(
+public record PublicTravelListResponse(
         Long travelId,
         String title,
         String destination,
         LocalDate startDate,
         LocalDate endDate,
+        String status,
+        Boolean isPublic,
         String backgroundImageUrl,
+        Integer completionRate,
         List<String> tags,
         String leaderNickname,
         Integer memberCount,
-        Integer likeCount      // ← 찜 수
+        Integer likeCount,
+        Boolean isLiked
 ) {}
