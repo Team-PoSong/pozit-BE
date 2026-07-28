@@ -154,7 +154,8 @@ public class AuthController {
                                         "tokenType": "Bearer",
                                         "expiresIn": 1800,
                                         "userId": 1,
-                                        "nickname": "Minseo Kim"
+                                        "nickname": "Minseo Kim",
+                                        "isNewUser": true
                                       }
                                     }
                                     """)

@@ -14,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -28,8 +30,13 @@ public class AuthAppleService {
         AppleTokenClaims claims = appleClient.loginWithAppleIdentityToken(request);
         String nickname = resolveNickname(request, claims);
 
-        User user = userRepository
-                .findByProviderAndSocialId(SocialProvider.APPLE, claims.socialId())
+        Optional<User> optionalUser = userRepository.findByProviderAndSocialId(
+                SocialProvider.APPLE,
+                claims.socialId()
+        );
+
+        boolean isNewUser = optionalUser.isEmpty();
+        User user = optionalUser
                 .map(existingUser -> {
                     existingUser.updateProfile(nickname);
                     return existingUser;
@@ -47,7 +54,8 @@ public class AuthAppleService {
         return LoginTokenResponse.of(
                 accessToken,
                 jwtTokenProvider.getAccessTokenExpirationSeconds(),
-                user
+                user,
+                isNewUser
         );
     }
 
