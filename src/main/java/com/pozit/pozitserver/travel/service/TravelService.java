@@ -99,7 +99,24 @@ public class TravelService {
                 .role(TravelMemberRole.LEADER)
                 .build();
         travelMemberRepository.save(travelMember);
-        return TravelCreateResponse.from(savedTravel);
+
+        List<Course> courses = createCourses(savedTravel);
+        return TravelCreateResponse.from(savedTravel, courses);
+    }
+
+    private List<Course> createCourses(Travel travel) {
+        int dayCount = (int) ChronoUnit.DAYS.between(travel.getStartDate(), travel.getEndDate()) + 1;
+        List<Course> courses = new ArrayList<>();
+
+        for (int day = 1; day <= dayCount; day++) {
+            courses.add(Course.builder()
+                    .travel(travel)
+                    .dayNumber(day)
+                    .date(travel.getStartDate().plusDays(day - 1L))
+                    .build());
+        }
+
+        return courseRepository.saveAll(courses);
     }
 
     private String generateUniqueInviteCode(){
@@ -256,9 +273,19 @@ public class TravelService {
 
     /**
      * 공개 여행 피드 조회 (완료 + 공개 여행만, 로그인 시 본인이 참여한 여행은 제외)
+     * regionCode/startDate·endDate/tagIds/keyword로 추가 검색·필터링이 가능
      */
-    public List<TravelListResponse> getPublicTravels(User currentUser) {
-        List<Travel> travels = travelRepository.findByStatusAndIsPublicOrderByEndDateDescIdDesc(TravelStatus.DONE, true);
+    public List<TravelListResponse> getPublicTravels(
+            User currentUser,
+            String regionCode,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<Long> tagIds,
+            String keyword
+    ) {
+        validateSearchPeriod(startDate, endDate);
+
+        List<Travel> travels = travelRepository.searchPublicTravels(regionCode, startDate, endDate, tagIds, keyword);
 
         if (currentUser != null) {
             Set<Long> myTravelIds = travelMemberRepository.findAllWithTravelByUser(currentUser).stream()
@@ -292,6 +319,16 @@ public class TravelService {
                         spotsByTravelId.getOrDefault(travel.getId(), List.of())
                 ))
                 .toList();
+    }
+
+    private void validateSearchPeriod(LocalDate startDate, LocalDate endDate) {
+        boolean onlyOneDateProvided = (startDate == null) != (endDate == null);
+        if (onlyOneDateProvided) {
+            throw new BusinessException(ErrorCode.INVALID_SEARCH_PERIOD);
+        }
+        if (startDate != null && startDate.isAfter(endDate)) {
+            throw new BusinessException(ErrorCode.INVALID_TRAVEL_PERIOD);
+        }
     }
 
     /**

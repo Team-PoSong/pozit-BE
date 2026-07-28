@@ -8,13 +8,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
-public interface TravelRepository extends JpaRepository<Travel, Long> {
+public interface TravelRepository extends JpaRepository<Travel, Long>, TravelRepositoryCustom {
 
     Optional<Travel> findByInviteCode(String inviteCode);
 
     boolean existsByInviteCode(String inviteCode);
 
     List<Travel> findByLeaderAndStatusNot(User leader, TravelStatus status);
-
-    List<Travel> findByStatusAndIsPublicOrderByEndDateDescIdDesc(TravelStatus status, Boolean isPublic);
 }

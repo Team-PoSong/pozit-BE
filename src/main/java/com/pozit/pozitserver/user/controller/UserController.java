@@ -6,8 +6,10 @@ import com.pozit.pozitserver.user.domain.User;
 import com.pozit.pozitserver.user.dto.request.NotificationSettingRequest;
 import com.pozit.pozitserver.user.dto.request.UserUpdateRequest;
 import com.pozit.pozitserver.user.dto.response.UserInfoResponse;
+import com.pozit.pozitserver.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,6 +19,17 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "User API")
 public class UserController {
 
+    private final UserService userService;
+
+    @PatchMapping("/nickname")
+    @Operation(summary = "첫 회원가입 시 닉네임 설정", description = "현재 로그인한 사용자의 서비스 닉네임을 설정합니다.")
+    public SuccessResponse<String> setNickname(
+            @CurrentUser User user,
+            @Valid @RequestBody UserUpdateRequest request
+    ){
+        return SuccessResponse.ok(userService.makeNewNickname(user, request));
+    }
+
     @GetMapping("/me")
     @Operation(summary = "내 정보 조회", description = "사용자 닉네임, 연동된 소셜 계정 정보를 조회합니다.")
     public SuccessResponse<String> getMyInfo(@CurrentUser User user) {
@@ -25,7 +38,11 @@ public class UserController {
 
     @PatchMapping("/me")
     @Operation(summary = "내 정보 수정", description = "사용자 닉네임을 수정합니다.")
-    public SuccessResponse<Void> updateMyInfo(@RequestBody UserUpdateRequest request) {
+    public SuccessResponse<Void> updateMyInfo(
+            @CurrentUser User user,
+            @Valid @RequestBody UserUpdateRequest request
+    ) {
+        userService.makeNewNickname(user, request);
         return SuccessResponse.ok();
     }
 

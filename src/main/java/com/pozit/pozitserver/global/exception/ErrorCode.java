@@ -26,17 +26,22 @@ public enum ErrorCode {
     INVALID_INVITE_CODE(HttpStatus.BAD_REQUEST, "TRAVEL400_5", "유효하지 않은 초대 코드입니다."),
     ALREADY_JOINED_TRAVEL(HttpStatus.BAD_REQUEST, "TRAVEL400_6", "이미 참여한 여행입니다."),
     CANNOT_JOIN_FINISHED_TRAVEL(HttpStatus.BAD_REQUEST, "TRAVEL400_7", "종료된 여행에는 참여할 수 없습니다."),
+    INVALID_SEARCH_PERIOD(HttpStatus.BAD_REQUEST, "TRAVEL400_8", "검색 기간이 올바르지 않습니다."),
     TRAVEL_NOT_FOUND(HttpStatus.NOT_FOUND, "TRAVEL404_1", "해당 여행을 찾을 수 없습니다."),
     INVITE_CODE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "TRAVEL500_1", "초대 코드 생성에 실패했습니다."),
 
     // Course
     DUPLICATE_COURSE_SPOT(HttpStatus.BAD_REQUEST, "COURSE400_1", "중복된 관광지 ID가 포함되어 있습니다."),
+    SEARCHED_TOURIST_SPOT_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_1", "검색 결과에서 선택한 관광지를 찾을 수 없습니다. 다시 검색해주세요."),
     INVALID_REGION(HttpStatus.BAD_REQUEST,"TRAVEL404_1","존재하지 않는 여행지입니다."),
 
     //Apple
     INVALID_APPLE_IDENTITY_TOKEN(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_1", "유효하지 않은 Apple identity token입니다."),
     INVALID_APPLE_TOKEN_ISSUE(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_2", "Apple identity token의 issuer가 올바르지 않습니다."),
-    NOT_FOUND_APPLE_IDENTITY_TOKEN_SUBJECT(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_3", "Apple identity token에서 회원 고유 식별값을 찾을 수 없습니다.");
+    NOT_FOUND_APPLE_IDENTITY_TOKEN_SUBJECT(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_3", "Apple identity token에서 회원 고유 식별값을 찾을 수 없습니다."),
+
+    //Tour API
+    TOUR_API_REQUEST_FAILED(HttpStatus.BAD_GATEWAY,"TOURAPI502_1","관광공사 API 요청에 실패했습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
