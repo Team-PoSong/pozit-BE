@@ -41,13 +41,28 @@ public class PublicTravelController {
                     description = "검색 조건 오류 (startDate/endDate 중 하나만 전달했거나, startDate가 endDate보다 늦은 경우)",
                     content = @Content(
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = """
-                                    {
-                                      "isSuccess": false,
-                                      "code": "TRAVEL400_8",
-                                      "message": "검색 기간이 올바르지 않습니다."
-                                    }
-                                    """)
+                            examples = {
+                                    @ExampleObject(
+                                            name = "날짜 한쪽만 전달",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "TRAVEL400_8",
+                                                      "message": "검색 기간이 올바르지 않습니다."
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "시작일이 종료일 이후",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "TRAVEL400_1",
+                                                      "message": "종료일은 시작일보다 빠를 수 없습니다."
+                                                    }
+                                                    """
+                                    )
+                            }
                     )
             )
     })
