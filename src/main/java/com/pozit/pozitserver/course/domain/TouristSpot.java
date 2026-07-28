@@ -1,5 +1,6 @@
 package com.pozit.pozitserver.course.domain;
 
+import com.pozit.pozitserver.travel.domain.Region;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -27,11 +28,17 @@ public class TouristSpot {
     @Column(nullable = false)
     private String name;
 
-    @Column(name = "area_code", length = 30)
-    private String areaCode;
+//    @Column(name = "area_code", length = 30)
+//    private String areaCode;
 
-    @Column(name = "sigungu_code", length = 30)
-    private String sigunguCode;
+    @Column(name = "legal_dong_region_code", length = 10)
+    private String legalDongRegionCode;
+
+    @Column(name = "legal_dong_sigungu_code", length = 10)
+    private String legalDongSigunguCode;
+
+//    @Column(name = "sigungu_code", length = 30)
+//    private String sigunguCode;
 
     @Column(length = 500)
     private String address;
@@ -45,13 +52,17 @@ public class TouristSpot {
     @Column(name = "image_url", length = 555)
     private String imageUrl;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "region_id")
+    private Region region;
+
     @Builder
     private TouristSpot(
             String contentId,
             String contentTypeId,
             String name,
-            String areaCode,
-            String sigunguCode,
+            String legalDongRegionCode,
+            String legalDongSigunguCode,
             String address,
             BigDecimal latitude,
             BigDecimal longitude,
@@ -60,8 +71,8 @@ public class TouristSpot {
         this.contentId = contentId;
         this.contentTypeId = contentTypeId;
         this.name = name;
-        this.areaCode = areaCode;
-        this.sigunguCode = sigunguCode;
+        this.legalDongRegionCode = legalDongRegionCode;
+        this.legalDongSigunguCode = legalDongSigunguCode;
         this.address = address;
         this.latitude = latitude;
         this.longitude = longitude;
