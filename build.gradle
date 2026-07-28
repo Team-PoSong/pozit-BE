@@ -67,14 +67,6 @@ tasks.named('test') {
 // QueryDSL Q클래스 생성 경로 설정
 def querydslDir = "$buildDir/generated/querydsl"
 
-sourceSets {
-    main {
-        java {
-            srcDirs += [querydslDir]
-        }
-    }
-}
-
 tasks.withType(JavaCompile).configureEach {
     options.generatedSourceOutputDirectory = file(querydslDir)
 }
