@@ -307,7 +307,7 @@ public class TravelService {
     private void validateSearchPeriod(LocalDate startDate, LocalDate endDate) {
         boolean onlyOneDateProvided = (startDate == null) != (endDate == null);
         if (onlyOneDateProvided) {
-            throw new BusinessException(ErrorCode.COMMON400);
+            throw new BusinessException(ErrorCode.INVALID_SEARCH_PERIOD);
         }
         if (startDate != null && startDate.isAfter(endDate)) {
             throw new BusinessException(ErrorCode.INVALID_TRAVEL_PERIOD);
