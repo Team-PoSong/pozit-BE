@@ -17,14 +17,18 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/course-spots")
 @RequiredArgsConstructor
+@Validated
 @Tag(name = "Tourist Spot API", description = "관광지 검색 및 검색 결과 저장 API입니다.")
 public class TouristSpotController {
 
@@ -33,7 +37,7 @@ public class TouristSpotController {
     @GetMapping("/search")
     @Operation(
             summary = "관광지 검색",
-            description = "관광공사 API를 통해 키워드로 관광지를 검색합니다. 검색 결과는 아직 DB에 저장되지 않으며, 사용자가 선택한 장소는 별도 저장 API로 저장합니다."
+            description = "관광공사 API를 통해 키워드로 관광지를 검색합니다. 무한스크롤 방식으로 사용할 수 있도록 cursor, hasNext, nextCursor를 반환합니다. 검색 결과는 아직 DB에 저장되지 않으며, 사용자가 선택한 장소는 별도 저장 API로 저장합니다."
     )
     @ApiResponses({
             @ApiResponse(
@@ -46,9 +50,10 @@ public class TouristSpotController {
                                       "code": "COMMON200",
                                       "message": "요청에 성공했습니다.",
                                       "result": {
-                                        "page": 1,
+                                        "currentCursor": 1,
+                                        "nextCursor": 2,
+                                        "hasNext": true,
                                         "size": 5,
-                                        "totalCount": 1,
                                         "places": [
                                           {
                                             "contentid": "126508",
@@ -87,13 +92,13 @@ public class TouristSpotController {
             @Parameter(description = "검색 키워드. 2자 이상 50자 이하", example = "경복궁")
             @RequestParam @NotBlank @Size(max=50,min=2) String keyword,
 
-            @Parameter(description = "페이지 번호", example = "1")
-            @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "무한스크롤 커서. 첫 요청은 1, 다음 요청부터는 이전 응답의 nextCursor 사용", example = "1")
+            @RequestParam(defaultValue = "1") @Min(1) int cursor,
 
-            @Parameter(description = "페이지 크기", example = "5")
-            @RequestParam(defaultValue = "5") int size
+            @Parameter(description = "한 번에 가져올 장소 수", example = "10")
+            @RequestParam(defaultValue = "10") @Min(1) @Max(20) int size
     ){
-        return SuccessResponse.ok(touristSpotService.search(keyword,page,size));
+        return SuccessResponse.ok(touristSpotService.search(keyword,cursor,size));
     }
 
     @PostMapping
