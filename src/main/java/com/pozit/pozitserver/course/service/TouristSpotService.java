@@ -3,6 +3,8 @@ package com.pozit.pozitserver.course.service;
 import com.pozit.pozitserver.course.domain.TouristSpot;
 import com.pozit.pozitserver.course.dto.request.CourseSpotRequest;
 import com.pozit.pozitserver.course.dto.response.coursespot.CourseSpotSaveResponse;
+import com.pozit.pozitserver.course.dto.response.coursespot.HostTouristSpotRankResponse;
+import com.pozit.pozitserver.course.dto.response.coursespot.HostTouristSpotRankScrollResponse;
 import com.pozit.pozitserver.course.dto.response.coursespot.PlaceSearchItemResponse;
 import com.pozit.pozitserver.course.dto.response.coursespot.PlaceSearchResponse;
 import com.pozit.pozitserver.course.dto.response.coursespot.TourApiResponse;
@@ -13,6 +15,8 @@ import com.pozit.pozitserver.global.tourapi.webClient.TourApiClient;
 import com.pozit.pozitserver.user.domain.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +42,69 @@ public class TouristSpotService {
     private final TourApiClient tourApiClient;
     private final TouristSpotRepository touristSpotRepository;
     private final Map<String, CachedTouristSpot> searchCache = new ConcurrentHashMap<>();
+
+    public HostTouristSpotRankScrollResponse getHostTouristSpotsRank(
+            String regionCode,
+            int cursor,
+            int size
+    ) {
+        String normalizedRegionCode = regionCode == null ? "" : regionCode.trim();
+        String legalDongRegionCode = toLegalDongRegionCode(normalizedRegionCode);
+        String legalDongSigunguCode = toLegalDongSigunguCode(normalizedRegionCode);
+
+        Pageable pageable = PageRequest.of(cursor - 1, size + 1);
+        List<TouristSpotRepository.TouristSpotRankProjection> ranks =
+                touristSpotRepository.findHostTouristSpotsRank(
+                        normalizedRegionCode,
+                        legalDongRegionCode,
+                        legalDongSigunguCode,
+                        pageable
+                );
+
+        boolean hasNext = ranks.size() > size;
+        List<TouristSpotRepository.TouristSpotRankProjection> currentRanks = hasNext
+                ? ranks.subList(0, size)
+                : ranks;
+
+        List<HostTouristSpotRankResponse> responses = new ArrayList<>();
+        int rankOffset = (cursor - 1) * size;
+
+        for (int i = 0; i < currentRanks.size(); i++) {
+            TouristSpotRepository.TouristSpotRankProjection rank = currentRanks.get(i);
+            responses.add(new HostTouristSpotRankResponse(
+                    rankOffset + i + 1,
+                    rank.getTouristSpotId(),
+                    rank.getTitle(),
+                    rank.getAddress(),
+                    rank.getImageUrl(),
+                    rank.getCourseSpotCount()
+            ));
+        }
+
+        return new HostTouristSpotRankScrollResponse(
+                cursor,
+                hasNext ? cursor + 1 : null,
+                hasNext,
+                responses.size(),
+                responses
+        );
+    }
+
+    private String toLegalDongRegionCode(String regionCode) {
+        if (regionCode == null || regionCode.length() < 2) {
+            return "";
+        }
+
+        return regionCode.substring(0, 2);
+    }
+
+    private String toLegalDongSigunguCode(String regionCode) {
+        if (regionCode == null || regionCode.length() < 5 || regionCode.endsWith("000")) {
+            return "";
+        }
+
+        return regionCode;
+    }
 
     public PlaceSearchResponse search(
             String keyword,

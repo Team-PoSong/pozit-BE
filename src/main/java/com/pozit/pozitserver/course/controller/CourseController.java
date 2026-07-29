@@ -1,5 +1,6 @@
 package com.pozit.pozitserver.course.controller;
 
+import com.pozit.pozitserver.course.dto.response.coursespot.CourseSpotResponse;
 import com.pozit.pozitserver.global.auth.annotation.CurrentUser;
 import com.pozit.pozitserver.global.response.ErrorResponse;
 import com.pozit.pozitserver.global.response.SuccessResponse;
@@ -221,5 +222,14 @@ public class CourseController {
             @Valid @RequestBody LocationRequest request) {
         return SuccessResponse.ok(courseService.getNearbySpots(currentUser, courseId, request));
     }
+
+//    @GetMapping("/spot/{courseSpotId}")
+//    @Operation(summary = "장소별 방문 기록 조회")
+//    public SuccessResponse<CourseSpotResponse> getCourseSpotRecord(
+//            @CurrentUser User user,
+//            @Parameter(description = "course spot ID") @PathVariable Long courseSpotId
+//    ){
+//        return SuccessResponse.ok(courseService.getCourseSpotRecord(user,courseSpotId));
+//    }
 
 }
