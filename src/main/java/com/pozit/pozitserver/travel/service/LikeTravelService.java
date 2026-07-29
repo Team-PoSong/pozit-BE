@@ -101,7 +101,7 @@ public class LikeTravelService {
             User user,
             LikeBasedTravelCreateRequest request
     ) {
-        findPublicSourceTravel(request.sourceTravelId());
+        Travel sourceTravel = findPublicSourceTravel(request.sourceTravelId());
         validateTravelPeriod(request);
         validateCourses(request);
 
@@ -113,8 +113,8 @@ public class LikeTravelService {
         Travel travel = Travel.builder()
                 .leader(user)
                 .title(request.title())
-                .destination(request.destination())
-                .regionCode(request.regionCode())
+                .destination(sourceTravel.getDestination())
+                .regionCode(sourceTravel.getRegionCode())
                 .startDate(request.startDate())
                 .endDate(request.endDate())
                 .transportation(request.transportation())

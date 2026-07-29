@@ -125,8 +125,6 @@ public class LikeTravelController {
                             {
                               "sourceTravelId": 1,
                               "title": "내가 가는 서울 여행",
-                              "destination": "서울특별시",
-                              "regionCode": "11000",
                               "startDate": "2026-08-10",
                               "endDate": "2026-08-12",
                               "transportation": "PUBLIC",

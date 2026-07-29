@@ -23,14 +23,6 @@ public record LikeBasedTravelCreateRequest(
         @Size(max = 50)
         String title,
 
-        @Schema(description = "여행 목적지명", example = "서울특별시")
-        @NotBlank
-        String destination,
-
-        @Schema(description = "여행 목적지 지역 코드", example = "11000")
-        @NotBlank
-        String regionCode,
-
         @Schema(description = "여행 시작일", example = "2026-08-10")
         @NotNull
         LocalDate startDate,
