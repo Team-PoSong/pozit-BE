@@ -32,7 +32,7 @@ public class PozingController {
         return SuccessResponse.ok(pozingService.getPozingPresignedUrl(user,courseSpotId));
     }
 
-    @PostMapping
+    @PostMapping("/save")
     @Operation(summary = "업로드 완료된 포징 저장", description = "S3 업로드 완료 후 포징 URL을 Pozing 엔티티로 저장합니다. 발급받은 presigned url로 영상 저장 완료 후 호출해주세요.")
     public SuccessResponse<PozingSaveResponse> savePozing(
             @CurrentUser User user,
