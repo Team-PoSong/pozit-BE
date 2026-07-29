@@ -3,6 +3,7 @@ package com.pozit.pozitserver.course.controller;
 import com.pozit.pozitserver.course.dto.request.CourseSpotRequest;
 import com.pozit.pozitserver.course.dto.response.coursespot.CourseSpotSaveResponse;
 import com.pozit.pozitserver.course.dto.response.coursespot.HostTouristSpotRankResponse;
+import com.pozit.pozitserver.course.dto.response.coursespot.HostTouristSpotRankScrollResponse;
 import com.pozit.pozitserver.course.dto.response.coursespot.PlaceSearchResponse;
 import com.pozit.pozitserver.course.service.TouristSpotService;
 import com.pozit.pozitserver.global.response.ErrorResponse;
@@ -23,8 +24,6 @@ import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/course-spots")
@@ -105,7 +104,7 @@ public class TouristSpotController {
     @GetMapping("/ranks")
     @Operation(
             summary = "해당 지역 내의 인기 관광지 랭킹 조회",
-            description = "코스에 많이 등록된 관광지를 기준으로 인기 관광지 랭킹을 조회합니다. regionCode를 전달하지 않으면 전체 지역 기준으로 조회합니다."
+            description = "코스에 많이 등록된 관광지를 기준으로 인기 관광지 랭킹을 조회합니다. 무한스크롤 방식으로 사용할 수 있도록 cursor, hasNext, nextCursor를 반환합니다. regionCode를 전달하지 않으면 전체 지역 기준으로 조회합니다."
     )
     @ApiResponses({
             @ApiResponse(
@@ -117,29 +116,35 @@ public class TouristSpotController {
                                       "isSuccess": true,
                                       "code": "COMMON200",
                                       "message": "요청에 성공했습니다.",
-                                      "result": [
-                                        {
-                                          "rank": 1,
-                                          "touristSpotId": 1,
-                                          "title": "경복궁",
-                                          "address": "서울특별시 종로구 사직로 161",
-                                          "imageUrl": "https://...",
-                                          "courseSpotCount": 12
-                                        }
-                                      ]
+                                      "result": {
+                                        "currentCursor": 1,
+                                        "nextCursor": 2,
+                                        "hasNext": true,
+                                        "size": 5,
+                                        "ranks": [
+                                          {
+                                            "rank": 1,
+                                            "touristSpotId": 1,
+                                            "title": "경복궁",
+                                            "address": "서울특별시 종로구 사직로 161",
+                                            "imageUrl": "https://...",
+                                            "courseSpotCount": 12
+                                          }
+                                        ]
+                                      }
                                     }
                                     """)
                     )
             )
     })
-    public SuccessResponse<List<HostTouristSpotRankResponse>> getHostTouristSpotsRank(
+    public SuccessResponse<HostTouristSpotRankScrollResponse> getHostTouristSpotsRank(
             @Parameter(description = "지역 코드. 미전달 시 전체 지역 기준", example = "11")
             @RequestParam(required = false) String regionCode,
 
-            @Parameter(description = "조회할 랭킹 개수", example = "3")
-            @RequestParam(defaultValue = "3") @Min(1) @Max(20) int limit
+            @Parameter(description = "무한스크롤 커서. 첫 요청은 1, 다음 요청부터는 이전 응답의 nextCursor 사용", example = "1")
+            @RequestParam(defaultValue = "1") @Min(1) int cursor
     ) {
-        return SuccessResponse.ok(touristSpotService.getHostTouristSpotsRank(regionCode, limit));
+        return SuccessResponse.ok(touristSpotService.getHostTouristSpotsRank(regionCode, cursor, 5));
     }
 
     @PostMapping

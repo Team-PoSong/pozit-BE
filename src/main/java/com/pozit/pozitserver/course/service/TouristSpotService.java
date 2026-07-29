@@ -4,6 +4,7 @@ import com.pozit.pozitserver.course.domain.TouristSpot;
 import com.pozit.pozitserver.course.dto.request.CourseSpotRequest;
 import com.pozit.pozitserver.course.dto.response.coursespot.CourseSpotSaveResponse;
 import com.pozit.pozitserver.course.dto.response.coursespot.HostTouristSpotRankResponse;
+import com.pozit.pozitserver.course.dto.response.coursespot.HostTouristSpotRankScrollResponse;
 import com.pozit.pozitserver.course.dto.response.coursespot.PlaceSearchItemResponse;
 import com.pozit.pozitserver.course.dto.response.coursespot.PlaceSearchResponse;
 import com.pozit.pozitserver.course.dto.response.coursespot.TourApiResponse;
@@ -42,14 +43,16 @@ public class TouristSpotService {
     private final TouristSpotRepository touristSpotRepository;
     private final Map<String, CachedTouristSpot> searchCache = new ConcurrentHashMap<>();
 
-    public List<HostTouristSpotRankResponse> getHostTouristSpotsRank(
+    public HostTouristSpotRankScrollResponse getHostTouristSpotsRank(
             String regionCode,
-            int limit
+            int cursor,
+            int size
     ) {
         String normalizedRegionCode = regionCode == null ? "" : regionCode.trim();
         String legalDongRegionCode = toLegalDongRegionCode(normalizedRegionCode);
         String legalDongSigunguCode = toLegalDongSigunguCode(normalizedRegionCode);
-        Pageable pageable = PageRequest.of(0, limit);
+
+        Pageable pageable = PageRequest.of(cursor - 1, size + 1);
         List<TouristSpotRepository.TouristSpotRankProjection> ranks =
                 touristSpotRepository.findHostTouristSpotsRank(
                         normalizedRegionCode,
@@ -58,11 +61,18 @@ public class TouristSpotService {
                         pageable
                 );
 
+        boolean hasNext = ranks.size() > size;
+        List<TouristSpotRepository.TouristSpotRankProjection> currentRanks = hasNext
+                ? ranks.subList(0, size)
+                : ranks;
+
         List<HostTouristSpotRankResponse> responses = new ArrayList<>();
-        for (int i = 0; i < ranks.size(); i++) {
-            TouristSpotRepository.TouristSpotRankProjection rank = ranks.get(i);
+        int rankOffset = (cursor - 1) * size;
+
+        for (int i = 0; i < currentRanks.size(); i++) {
+            TouristSpotRepository.TouristSpotRankProjection rank = currentRanks.get(i);
             responses.add(new HostTouristSpotRankResponse(
-                    i + 1,
+                    rankOffset + i + 1,
                     rank.getTouristSpotId(),
                     rank.getTitle(),
                     rank.getAddress(),
@@ -71,7 +81,13 @@ public class TouristSpotService {
             ));
         }
 
-        return responses;
+        return new HostTouristSpotRankScrollResponse(
+                cursor,
+                hasNext ? cursor + 1 : null,
+                hasNext,
+                responses.size(),
+                responses
+        );
     }
 
     private String toLegalDongRegionCode(String regionCode) {
