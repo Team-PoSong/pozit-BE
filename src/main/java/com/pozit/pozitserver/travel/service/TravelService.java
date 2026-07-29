@@ -122,7 +122,9 @@ public class TravelService {
         return courseRepository.saveAll(courses);
     }
 
-    private String generateUniqueInviteCode(){
+
+
+    String generateUniqueInviteCode(){
         for (int i = 0; i < SEARCH_LIMIT; i++) {
             String inviteCode = RandomUtil.generateInviteCode();
             if (!travelRepository.existsByInviteCode(inviteCode)) {
