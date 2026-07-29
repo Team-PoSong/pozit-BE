@@ -3,11 +3,10 @@ package com.pozit.pozitserver.travel.controller;
 import com.pozit.pozitserver.global.auth.annotation.CurrentUser;
 import com.pozit.pozitserver.global.response.ErrorResponse;
 import com.pozit.pozitserver.global.response.SuccessResponse;
+import com.pozit.pozitserver.pozing.dto.request.PozingSaveRequest;
+import com.pozit.pozitserver.pozing.dto.response.PozingSaveResponse;
 import com.pozit.pozitserver.tag.dto.response.TagResponse;
-import com.pozit.pozitserver.travel.dto.request.TravelCreateRequest;
-import com.pozit.pozitserver.travel.dto.request.TravelJoinRequest;
-import com.pozit.pozitserver.travel.dto.request.TravelUpdateRequest;
-import com.pozit.pozitserver.travel.dto.request.TravelVisibilityRequest;
+import com.pozit.pozitserver.travel.dto.request.*;
 import com.pozit.pozitserver.travel.dto.response.*;
 import com.pozit.pozitserver.travel.service.TravelService;
 import com.pozit.pozitserver.user.domain.User;
@@ -505,10 +504,22 @@ public class TravelController {
         return SuccessResponse.ok();
     }
 
-    @PostMapping("/{travelId}/background-image")
+    @PostMapping("presigned-url/{travelId}/background-image")
     @Operation(summary = "배경 사진 업로드 URL 발급", description = "S3 presigned URL을 발급합니다. 클라이언트는 해당 URL로 직접 업로드합니다.")
     public SuccessResponse<PresignedUrlResponse> getBackgroundImageUploadUrl(
+            @CurrentUser User currentUser,
             @Parameter(description = "여행 ID") @PathVariable Long travelId) {
-        return SuccessResponse.ok(null);
+        return SuccessResponse.ok(travelService.getBackgroundImgPresignedUrl(currentUser, travelId));
     }
+
+
+    @PatchMapping("/save/background-image")
+    @Operation(summary = "배경 사진 presigned url에 업로드 완료 후 호출", description = "S3 업로드 완료 후 배경 사진 URL을 backgroundImgUrl에 저장합니다. 발급받은 presigned url로 사진 저장 완료 후 호출해주세요.")
+    public SuccessResponse<BackgroundImgSaveResponse> saveBackgroundImg(
+            @CurrentUser User user,
+            @Valid @RequestBody BackgroundImgSaveRequest request
+    ) {
+        return SuccessResponse.ok(travelService.saveBackgroundImg(user, request));
+    }
+
 }

@@ -16,6 +16,13 @@ public interface PozingRepository extends JpaRepository<Pozing, Long> {
     long countByCourseSpot_Course_Travel(Travel travel);
 
     @Query("""
+            select count(distinct p.user.id)
+            from Pozing p
+            where p.courseSpot = :courseSpot
+            """)
+    long countDistinctUserByCourseSpot(@Param("courseSpot") CourseSpot courseSpot);
+
+    @Query("""
             select p
             from Pozing p
             join fetch p.user

@@ -7,9 +7,12 @@ import com.pozit.pozitserver.course.repository.CourseRepository;
 import com.pozit.pozitserver.course.repository.CourseSpotRepository;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
+import com.pozit.pozitserver.global.s3.S3Service;
 import com.pozit.pozitserver.global.util.RandomUtil;
 import com.pozit.pozitserver.like.repository.LikeRepository;
 import com.pozit.pozitserver.pozing.domain.Pozing;
+import com.pozit.pozitserver.pozing.dto.request.PozingSaveRequest;
+import com.pozit.pozitserver.pozing.dto.response.PozingSaveResponse;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
 import com.pozit.pozitserver.tag.domain.Tag;
 import com.pozit.pozitserver.tag.domain.TravelTag;
@@ -20,18 +23,8 @@ import com.pozit.pozitserver.travel.domain.Travel;
 import com.pozit.pozitserver.travel.domain.TravelMember;
 import com.pozit.pozitserver.travel.domain.TravelMemberRole;
 import com.pozit.pozitserver.travel.domain.TravelStatus;
-import com.pozit.pozitserver.travel.dto.request.TravelCreateRequest;
-import com.pozit.pozitserver.travel.dto.request.TravelJoinRequest;
-import com.pozit.pozitserver.travel.dto.request.TravelUpdateRequest;
-import com.pozit.pozitserver.travel.dto.request.TravelVisibilityRequest;
-import com.pozit.pozitserver.travel.dto.response.InviteCodeResponse;
-import com.pozit.pozitserver.travel.dto.response.JoinResponse;
-import com.pozit.pozitserver.travel.dto.response.PublicTravelDetailResponse;
-import com.pozit.pozitserver.travel.dto.response.PublicTravelListResponse;
-import com.pozit.pozitserver.travel.dto.response.TravelCreateResponse;
-import com.pozit.pozitserver.travel.dto.response.TravelDetailResponse;
-import com.pozit.pozitserver.travel.dto.response.TravelJoinResponse;
-import com.pozit.pozitserver.travel.dto.response.TravelListResponse;
+import com.pozit.pozitserver.travel.dto.request.*;
+import com.pozit.pozitserver.travel.dto.response.*;
 import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
 import com.pozit.pozitserver.user.domain.User;
@@ -40,6 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -48,6 +42,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -56,6 +51,8 @@ import java.util.stream.Collectors;
 public class TravelService {
 
     private static final int SEARCH_LIMIT = 10;
+    private static final Duration BACKGROUND_IMAGE_PRESIGNED_URL_EXPIRATION = Duration.ofMinutes(10);
+    private static final String BACKGROUND_IMAGE_CONTENT_TYPE = "image/jpeg";
 
     private final TravelRepository travelRepository;
     private final TravelMemberRepository travelMemberRepository;
@@ -65,6 +62,7 @@ public class TravelService {
     private final CourseSpotRepository courseSpotRepository;
     private final PozingRepository pozingRepository;
     private final LikeRepository likeRepository;
+    private final S3Service s3Service;
 
 
     /**
@@ -707,6 +705,47 @@ public class TravelService {
         }
 
         travel.updateVisibility(request.isPublic());
+    }
+
+    /**
+     * 여행 background image용 presigned url 발급
+     */
+    public PresignedUrlResponse getBackgroundImgPresignedUrl(
+            User currentUser,
+            Long travelId
+    ) {
+        Travel travel = travelRepository.findById(travelId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
+
+        validateLeader(travel, currentUser);
+
+        String key = "travels/%d/background/%s.jpg".formatted(
+                travel.getId(),
+                UUID.randomUUID()
+        );
+
+        return s3Service.createPutPresignedUrl(
+                key,
+                BACKGROUND_IMAGE_CONTENT_TYPE,
+                BACKGROUND_IMAGE_PRESIGNED_URL_EXPIRATION
+        );
+    }
+
+    @Transactional
+    public BackgroundImgSaveResponse saveBackgroundImg(
+            User user,
+            BackgroundImgSaveRequest request
+    ) {
+        Travel travel =travelRepository.findById(request.travelId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
+
+        validateMember(travel, user);
+        travel.updateBackgroundImage(request.backGroundImgUrl());
+
+        return new BackgroundImgSaveResponse(
+                travel.getId(),
+                travel.getBackgroundImageUrl()
+        );
     }
 
     private void validateDateChangeAllowed(Travel travel, LocalDate startDate, LocalDate endDate) {
