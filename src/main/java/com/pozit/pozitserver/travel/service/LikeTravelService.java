@@ -108,9 +108,8 @@ public class LikeTravelService {
         List<Tag> tags = findTags(request.tagIds());
         Map<Long, TouristSpot> touristSpotMap = findTouristSpots(request);
 
-        String inviteCode = travelService.generateUniqueInviteCode();
-
-        Travel travel = Travel.builder()
+        Travel savedTravel = travelService.saveWithUniqueInviteCode(inviteCode -> {
+            Travel travel = Travel.builder()
                 .leader(user)
                 .title(request.title())
                 .destination(sourceTravel.getDestination())
@@ -121,9 +120,10 @@ public class LikeTravelService {
                 .travelStyle(request.travelStyle())
                 .inviteCode(inviteCode)
                 .build();
-        travel.updateBackgroundImage(request.backgroundImageUrl());
+            travel.updateBackgroundImage(request.backgroundImageUrl());
+            return travel;
+        });
 
-        Travel savedTravel = travelRepository.save(travel);
         saveLeader(savedTravel, user);
         saveTags(savedTravel, tags);
         List<Course> savedCourses = saveCoursesAndSpots(savedTravel, request, touristSpotMap);
