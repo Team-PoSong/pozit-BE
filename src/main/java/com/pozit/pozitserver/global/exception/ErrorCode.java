@@ -46,7 +46,13 @@ public enum ErrorCode {
     NOT_FOUND_APPLE_IDENTITY_TOKEN_SUBJECT(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_3", "Apple identity token에서 회원 고유 식별값을 찾을 수 없습니다."),
 
     //Tour API
-    TOUR_API_REQUEST_FAILED(HttpStatus.BAD_GATEWAY,"TOURAPI502_1","관광공사 API 요청에 실패했습니다.");
+    TOUR_API_REQUEST_FAILED(HttpStatus.BAD_GATEWAY,"TOURAPI502_1","관광공사 API 요청에 실패했습니다."),
+
+    // User
+    DUPLICATE_NICKNAME(HttpStatus.BAD_REQUEST, "USER400_1", "이미 사용 중인 닉네임입니다."),
+
+    // Term
+    TERM_NOT_FOUND(HttpStatus.NOT_FOUND, "TERM404_1", "약관 정보를 찾을 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
