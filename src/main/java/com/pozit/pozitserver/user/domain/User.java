@@ -15,6 +15,10 @@ import lombok.NoArgsConstructor;
                 @UniqueConstraint(
                         name = "uk_member_provider_social_id",
                         columnNames = {"provider", "social_id"}
+                ),
+                @UniqueConstraint(
+                        name = "uk_member_nickname",
+                        columnNames = {"nickname"}
                 )
         }
 )
@@ -39,6 +43,24 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
+    @Column(name = "push_enabled", nullable = false)
+    private Boolean pushEnabled = true;
+
+    @Column(name = "noti_travel_enabled", nullable = false)
+    private Boolean notiTravelEnabled = true;
+
+    @Column(name = "noti_group_enabled", nullable = false)
+    private Boolean notiGroupEnabled = true;
+
+    @Column(name = "noti_pozing_enabled", nullable = false)
+    private Boolean notiPozingEnabled = true;
+
+    @Column(name = "noti_course_enabled", nullable = false)
+    private Boolean notiCourseEnabled = true;
+
+    @Column(name = "noti_notice_enabled", nullable = false)
+    private Boolean notiNoticeEnabled = true;
+
     @Builder
     private User(
             SocialProvider provider,
@@ -60,5 +82,21 @@ public class User {
     ) {
 //        this.email = email;
         this.nickname = nickname;
+    }
+
+    public void updateNotificationSettings(
+            Boolean pushEnabled,
+            Boolean notiTravelEnabled,
+            Boolean notiGroupEnabled,
+            Boolean notiPozingEnabled,
+            Boolean notiCourseEnabled,
+            Boolean notiNoticeEnabled
+    ) {
+        if (pushEnabled != null) this.pushEnabled = pushEnabled;
+        if (notiTravelEnabled != null) this.notiTravelEnabled = notiTravelEnabled;
+        if (notiGroupEnabled != null) this.notiGroupEnabled = notiGroupEnabled;
+        if (notiPozingEnabled != null) this.notiPozingEnabled = notiPozingEnabled;
+        if (notiCourseEnabled != null) this.notiCourseEnabled = notiCourseEnabled;
+        if (notiNoticeEnabled != null) this.notiNoticeEnabled = notiNoticeEnabled;
     }
 }
