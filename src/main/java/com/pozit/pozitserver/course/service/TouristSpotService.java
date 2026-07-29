@@ -41,13 +41,13 @@ public class TouristSpotService {
 
     public PlaceSearchResponse search(
             String keyword,
-            int page,
+            int cursor,
             int size
     ) {
         String normalizedKeyword = keyword.trim();
 
         TourApiResponse result =
-                tourApiClient.searchPlaces(normalizedKeyword, page, size);
+                tourApiClient.searchPlaces(normalizedKeyword, cursor, size);
 
         validateResponse(result);
 
@@ -64,10 +64,14 @@ public class TouristSpotService {
                 .map(PlaceSearchItemResponse::from)
                 .toList();
 
+        boolean hasNext = body.pageNo() * body.numOfRows() < body.totalCount();
+        Integer nextCursor = hasNext ? body.pageNo() + 1 : null;
+
         return new PlaceSearchResponse(
                 body.pageNo(),
-                body.numOfRows(),
-                body.totalCount(),
+                nextCursor,
+                hasNext,
+                places.size(),
                 places
         );
     }

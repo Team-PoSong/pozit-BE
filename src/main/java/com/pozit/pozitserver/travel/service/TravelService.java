@@ -85,6 +85,8 @@ public class TravelService {
                 .regionCode(request.regionCode())
                 .startDate(request.startDate())
                 .endDate(request.endDate())
+                .transportation(request.transportation())
+                .travelStyle(request.travelStyle())
                 .inviteCode(inviteCode)
                 .build();
         Travel savedTravel=travelRepository.save(travel);
