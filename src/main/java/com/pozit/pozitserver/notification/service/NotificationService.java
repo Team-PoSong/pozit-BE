@@ -32,4 +32,11 @@ public class NotificationService {
                 .toList();
     }
 
+    @Transactional
+    public void readNotification(User user, Long notificationId) {
+        Notification notification = notificationRepository.findByIdAndUser(notificationId, user)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOTIFICATION_NOT_FOUND));
+        notification.markAsRead();
+    }
+
 }

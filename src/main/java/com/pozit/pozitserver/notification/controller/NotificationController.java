@@ -53,8 +53,41 @@ public class NotificationController {
 
     @PatchMapping("/{notificationId}/read")
     @Operation(summary = "알림 읽음 처리", description = "개별 알림을 읽음 처리합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "처리 성공"),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "인증되지 않은 요청",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON401",
+                                      "message": "인증되지 않은 요청입니다."
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "본인 소유가 아니거나 존재하지 않는 알림",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "NOTI404_1",
+                                      "message": "해당 알림을 찾을 수 없습니다."
+                                    }
+                                    """)
+                    )
+            )
+    })
     public SuccessResponse<Void> readNotification(
+            @CurrentUser User user,
             @Parameter(description = "알림 ID") @PathVariable Long notificationId) {
+        notificationService.readNotification(user, notificationId);
         return SuccessResponse.ok();
     }
 }
