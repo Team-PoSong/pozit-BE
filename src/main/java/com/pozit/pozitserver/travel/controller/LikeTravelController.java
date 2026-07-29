@@ -31,7 +31,7 @@ public class LikeTravelController {
     @GetMapping("/travels/{travelId}/draft")
     @Operation(
             summary = "찜 기반 여행 생성 초안 조회",
-            description = "공개된 완료 여행을 기반으로 생성 화면에 사용할 초안을 조회합니다. 이 API는 DB에 새 여행을 생성하지 않습니다."
+            description = "공개 여행을 기반으로 생성 화면에 사용할 초안을 조회합니다. 이 API는 DB에 새 여행을 생성하지 않습니다."
     )
     @ApiResponses({
             @ApiResponse(

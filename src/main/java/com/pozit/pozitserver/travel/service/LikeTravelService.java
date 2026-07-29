@@ -148,7 +148,7 @@ public class LikeTravelService {
         Travel sourceTravel = travelRepository.findById(sourceTravelId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
 
-        if (!sourceTravel.isPubliclyVisible()) {
+        if (!Boolean.TRUE.equals(sourceTravel.getIsPublic())) {
             throw new BusinessException(ErrorCode.TRAVEL_NOT_FOUND);
         }
 
