@@ -2,6 +2,7 @@ package com.pozit.pozitserver.travel.controller;
 
 import com.pozit.pozitserver.global.response.ErrorResponse;
 import com.pozit.pozitserver.global.response.SuccessResponse;
+import com.pozit.pozitserver.travel.dto.response.RegionSearchScrollResponse;
 import com.pozit.pozitserver.travel.dto.response.RegionSearchResponse;
 import com.pozit.pozitserver.travel.service.RegionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,17 +13,19 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/regions")
+@Validated
 @Tag(name = "Region API", description = "여행 지역 검색 API입니다.")
 public class RegionController {
 
@@ -31,7 +34,7 @@ public class RegionController {
     @GetMapping("/search")
     @Operation(
             summary = "여행 지역 검색",
-            description = "키워드로 여행 지역을 검색합니다. 공백 또는 빈 키워드는 빈 목록을 반환하며, 최대 10개까지 조회됩니다."
+            description = "키워드로 여행 지역을 검색합니다. 무한스크롤 방식으로 사용할 수 있도록 cursor, hasNext, nextCursor를 반환합니다. 공백 또는 빈 키워드는 빈 목록을 반환합니다."
     )
     @ApiResponses({
             @ApiResponse(
@@ -43,14 +46,20 @@ public class RegionController {
                                       "isSuccess": true,
                                       "code": "COMMON200",
                                       "message": "요청에 성공했습니다.",
-                                      "result": [
-                                        {
-                                          "code": "11000",
-                                          "name": "서울특별시",
-                                          "provinceCode": "11000",
-                                          "provinceName": "서울특별시"
-                                        }
-                                      ]
+                                      "result": {
+                                        "currentCursor": 1,
+                                        "nextCursor": 2,
+                                        "hasNext": true,
+                                        "size": 10,
+                                        "regions": [
+                                          {
+                                            "code": "11000",
+                                            "name": "서울특별시",
+                                            "provinceCode": "11000",
+                                            "provinceName": "서울특별시"
+                                          }
+                                        ]
+                                      }
                                     }
                                     """)
                     )
@@ -70,11 +79,17 @@ public class RegionController {
                     )
             )
     })
-    public SuccessResponse<List<RegionSearchResponse>> getRegions(
+    public SuccessResponse<RegionSearchScrollResponse> getRegions(
             @Parameter(description = "검색할 지역 키워드", example = "서울")
-            @RequestParam String keyword
+            @RequestParam String keyword,
+
+            @Parameter(description = "무한스크롤 커서. 첫 요청은 1, 다음 요청부터는 이전 응답의 nextCursor 사용", example = "1")
+            @RequestParam(defaultValue = "1") @Min(1) int cursor,
+
+            @Parameter(description = "한 번에 가져올 지역 수", example = "10")
+            @RequestParam(defaultValue = "10") @Min(1) @Max(20) int size
     ){
-        return SuccessResponse.ok(regionService.searchRegions(keyword));
+        return SuccessResponse.ok(regionService.searchRegions(keyword, cursor, size));
     }
 
 }

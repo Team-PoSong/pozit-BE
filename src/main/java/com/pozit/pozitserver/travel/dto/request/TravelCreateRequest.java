@@ -1,5 +1,7 @@
 package com.pozit.pozitserver.travel.dto.request;
 
+import com.pozit.pozitserver.travel.domain.Transportation;
+import com.pozit.pozitserver.travel.domain.TravelStyle;
 import com.pozit.pozitserver.travel.validator.ValidTravelPeriod;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -26,6 +28,12 @@ public record TravelCreateRequest(
 
         @Schema(description = "여행 종료일", example = "2026-08-03")
         @NotNull LocalDate endDate,
+
+        @Schema(description = "이동 수단")
+        Transportation transportation,
+
+        @Schema(description = "여행 스타일")
+        TravelStyle travelStyle,
 
         @Schema(description = "여행 태그 ID 목록", example = "[1, 2, 3]")
         @NotNull List<@NotNull Long> tagIds

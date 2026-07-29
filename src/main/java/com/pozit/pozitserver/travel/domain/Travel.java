@@ -47,6 +47,14 @@ public class Travel {
     @Column(nullable = false, length = 15)
     private TravelStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column
+    private Transportation transportation;
+
+    @Enumerated(EnumType.STRING)
+    @Column
+    private TravelStyle travelStyle;
+
     @Column(name = "is_public", nullable = false)
     private Boolean isPublic;
 
@@ -78,6 +86,8 @@ public class Travel {
             String regionCode,
             LocalDate startDate,
             LocalDate endDate,
+            Transportation transportation,
+            TravelStyle travelStyle,
             String inviteCode
     ) {
 //        validateDateRange(startDate, endDate);
@@ -88,6 +98,8 @@ public class Travel {
         this.startDate = startDate;
         this.endDate = endDate;
         this.status = TravelStatus.BEFORE;
+        this.transportation=transportation;
+        this.travelStyle=travelStyle;
         this.inviteCode=inviteCode;
         this.isPublic = false;
     }

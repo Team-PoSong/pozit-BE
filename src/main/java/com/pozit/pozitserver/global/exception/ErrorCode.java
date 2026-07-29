@@ -34,6 +34,8 @@ public enum ErrorCode {
     DUPLICATE_COURSE_SPOT(HttpStatus.BAD_REQUEST, "COURSE400_1", "중복된 관광지 ID가 포함되어 있습니다."),
     SEARCHED_TOURIST_SPOT_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_1", "검색 결과에서 선택한 관광지를 찾을 수 없습니다. 다시 검색해주세요."),
     INVALID_REGION(HttpStatus.BAD_REQUEST,"TRAVEL404_1","존재하지 않는 여행지입니다."),
+    COURSE_SPOT_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_2", "코스 내 해당 여행지를 찾을 수 없습니다."),
+    NOT_VALID_TRAVEL_MEMBER(HttpStatus.FORBIDDEN,"COURSE403_1","해당 유저는 이 여행 코스에 접근 권한이 없습니다."),
 
     // Like
     ALREADY_LIKED(HttpStatus.BAD_REQUEST, "LIKE400_1", "이미 찜한 여행입니다."),
