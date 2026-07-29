@@ -51,6 +51,9 @@ public enum ErrorCode {
     // User
     DUPLICATE_NICKNAME(HttpStatus.BAD_REQUEST, "USER400_1", "이미 사용 중인 닉네임입니다."),
 
+    // Term
+    TERM_NOT_FOUND(HttpStatus.NOT_FOUND, "TERM404_1", "약관 정보를 찾을 수 없습니다.");
+
     private final HttpStatus httpStatus;
     private final String code;
     private final String message;
