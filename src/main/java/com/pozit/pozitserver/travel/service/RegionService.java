@@ -1,9 +1,8 @@
 package com.pozit.pozitserver.travel.service;
 
-import com.pozit.pozitserver.global.exception.BusinessException;
-import com.pozit.pozitserver.global.exception.ErrorCode;
 import org.springframework.data.domain.PageRequest;
 import com.pozit.pozitserver.travel.domain.Region;
+import com.pozit.pozitserver.travel.dto.response.RegionSearchScrollResponse;
 import com.pozit.pozitserver.travel.dto.response.RegionSearchResponse;
 import com.pozit.pozitserver.travel.repository.RegionRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,18 +26,41 @@ public class RegionService {
      * @param keyword
      * @return
      */
-    public List<RegionSearchResponse> searchRegions(String keyword){
+    public RegionSearchScrollResponse searchRegions(
+            String keyword,
+            int cursor,
+            int size
+    ){
         String trimmedKeyword=keyword==null?"":keyword.trim();
 
         if(trimmedKeyword.isEmpty()){
-            return List.of();
+            return new RegionSearchScrollResponse(
+                    cursor,
+                    null,
+                    false,
+                    0,
+                    List.of()
+            );
         }
 
-        Pageable pageable= PageRequest.of(0,SEARCH_LIMIT);
-        return regionRepository.search(trimmedKeyword,pageable)
+        Pageable pageable= PageRequest.of(cursor - 1,size + 1);
+        List<RegionSearchResponse> regions = regionRepository.search(trimmedKeyword,pageable)
                 .stream()
                 .map(this::toResponse)
                 .toList();
+
+        boolean hasNext = regions.size() > size;
+        List<RegionSearchResponse> currentRegions = hasNext
+                ? regions.subList(0, size)
+                : regions;
+
+        return new RegionSearchScrollResponse(
+                cursor,
+                hasNext ? cursor + 1 : null,
+                hasNext,
+                currentRegions.size(),
+                currentRegions
+        );
     }
 
     private RegionSearchResponse toResponse(Region region){
