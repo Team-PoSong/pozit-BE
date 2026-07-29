@@ -17,7 +17,15 @@ import java.time.LocalDateTime;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Table(name = "travels")
+@Table(
+        name = "travels",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_travel_invite_code",
+                        columnNames = "invite_code"
+                )
+        }
+)
 public class Travel {
 
     @Id
