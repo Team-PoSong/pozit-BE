@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
+import java.time.Duration;
 import java.util.Collection;
 
 @Service
@@ -37,6 +38,7 @@ public class AppleClient {
     private static final String GRANT_TYPE_AUTHORIZATION_CODE = "authorization_code";
     private static final String TOKEN_TYPE_HINT_ACCESS_TOKEN = "access_token";
     private static final String TOKEN_TYPE_HINT_REFRESH_TOKEN = "refresh_token";
+    private static final Duration APPLE_API_TIMEOUT = Duration.ofSeconds(5);
 
     private final AppleJwtProvider appleJwtProvider;
     private final ApplePublicKeyGenerator applePublicKeyGenerator;
@@ -162,7 +164,7 @@ public class AppleClient {
                             .with("grant_type", GRANT_TYPE_AUTHORIZATION_CODE))
                     .retrieve()
                     .bodyToMono(AppleTokenResponse.class)
-                    .block();
+                    .block(APPLE_API_TIMEOUT);
 
             if (response == null
                     || (isBlank(response.accessToken()) && isBlank(response.refreshToken()))) {
@@ -180,6 +182,10 @@ public class AppleClient {
                     null,
                     exception
             );
+            throw new BusinessException(ErrorCode.APPLE_TOKEN_REVOKE_FAILED);
+        } catch (IllegalStateException exception) {
+            log.warn("Apple token API timed out. timeout={}, platform={}, clientId={}",
+                    APPLE_API_TIMEOUT, platform, clientId, exception);
             throw new BusinessException(ErrorCode.APPLE_TOKEN_REVOKE_FAILED);
         } catch (WebClientException | IllegalArgumentException exception) {
             log.warn("Failed to exchange Apple authorization code for revoke. platform={}, clientId={}",
@@ -207,7 +213,7 @@ public class AppleClient {
                             .with("token_type_hint", tokenTypeHint))
                     .retrieve()
                     .toBodilessEntity()
-                    .block();
+                    .block(APPLE_API_TIMEOUT);
         } catch (WebClientResponseException exception) {
             logAppleApiFailure(
                     "revoke",
@@ -216,6 +222,10 @@ public class AppleClient {
                     tokenTypeHint,
                     exception
             );
+            throw new BusinessException(ErrorCode.APPLE_TOKEN_REVOKE_FAILED);
+        } catch (IllegalStateException exception) {
+            log.warn("Apple revoke API timed out. timeout={}, platform={}, clientId={}, tokenTypeHint={}",
+                    APPLE_API_TIMEOUT, platform, clientId, tokenTypeHint, exception);
             throw new BusinessException(ErrorCode.APPLE_TOKEN_REVOKE_FAILED);
         } catch (WebClientException | IllegalArgumentException exception) {
             log.warn("Failed to revoke Apple token. platform={}, clientId={}, tokenTypeHint={}",
