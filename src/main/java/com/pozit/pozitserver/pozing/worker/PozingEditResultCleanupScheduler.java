@@ -6,6 +6,7 @@ import com.pozit.pozitserver.pozing.domain.PozingEditJobStatus;
 import com.pozit.pozitserver.pozing.repository.PozingEditJobRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -23,9 +24,14 @@ public class PozingEditResultCleanupScheduler {
     private final PozingEditJobRepository pozingEditJobRepository;
     private final S3Service s3Service;
 
+    @Value("${pozing.edit.processing-timeout-minutes:10}")
+    private long processingTimeoutMinutes;
+
     @Scheduled(fixedDelayString = "${pozing.edit.cleanup.fixed-delay-ms:60000}")
     @Transactional
     public void cleanupExpiredResults() {
+        failStaleProcessingJobs();
+
         List<PozingEditJob> expiredJobs = pozingEditJobRepository.findExpiredCompletedJobs(
                 PozingEditJobStatus.COMPLETED,
                 LocalDateTime.now()
@@ -41,6 +47,18 @@ public class PozingEditResultCleanupScheduler {
                         job.getResultS3Key(),
                         e);
             }
+        }
+    }
+
+    private void failStaleProcessingJobs() {
+        LocalDateTime threshold = LocalDateTime.now().minusMinutes(processingTimeoutMinutes);
+        List<PozingEditJob> staleJobs = pozingEditJobRepository.findStaleProcessingJobs(
+                PozingEditJobStatus.PROCESSING,
+                threshold
+        );
+
+        for (PozingEditJob job : staleJobs) {
+            job.fail("Pozing edit job timed out while PROCESSING.");
         }
     }
 }

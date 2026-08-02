@@ -48,4 +48,17 @@ public interface PozingEditJobRepository extends JpaRepository<PozingEditJob, Lo
             @Param("status") PozingEditJobStatus status,
             @Param("now") LocalDateTime now
     );
+
+    @Query("""
+            select j
+            from PozingEditJob j
+            where j.status = :status
+              and j.startedAt is not null
+              and j.startedAt <= :threshold
+            order by j.startedAt asc, j.id asc
+            """)
+    List<PozingEditJob> findStaleProcessingJobs(
+            @Param("status") PozingEditJobStatus status,
+            @Param("threshold") LocalDateTime threshold
+    );
 }
