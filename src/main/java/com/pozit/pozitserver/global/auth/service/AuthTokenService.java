@@ -7,6 +7,8 @@ import com.pozit.pozitserver.global.exception.ErrorCode;
 import com.pozit.pozitserver.user.domain.User;
 import com.pozit.pozitserver.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -67,11 +70,27 @@ public class AuthTokenService {
     }
 
     public void logoutAllDevices(Long userId) {
-        Set<String> keys = stringRedisTemplate.keys(refreshTokenKeyPattern(userId));
+        Set<String> keys = scanRefreshTokenKeys(userId);
         if (keys == null || keys.isEmpty()) {
             return;
         }
         stringRedisTemplate.delete(keys);
+    }
+
+    private Set<String> scanRefreshTokenKeys(Long userId) {
+        Set<String> keys = new HashSet<>();
+        ScanOptions options = ScanOptions.scanOptions()
+                .match(refreshTokenKeyPattern(userId))
+                .count(1000)
+                .build();
+
+        try (Cursor<String> cursor = stringRedisTemplate.scan(options)) {
+            cursor.forEachRemaining(keys::add);
+        } catch (RuntimeException exception) {
+            throw new BusinessException(ErrorCode.COMMON500);
+        }
+
+        return keys;
     }
 
     private Long validateStoredRefreshToken(

@@ -1,6 +1,7 @@
 package com.pozit.pozitserver.user.service;
 
 import com.pozit.pozitserver.global.auth.service.AuthTokenService;
+import com.pozit.pozitserver.global.auth.apple.AppleClient;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
 import com.pozit.pozitserver.global.s3.S3Service;
@@ -8,9 +9,11 @@ import com.pozit.pozitserver.like.repository.LikeRepository;
 import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
 import com.pozit.pozitserver.support.repository.FeedbackRepository;
+import com.pozit.pozitserver.user.domain.SocialProvider;
 import com.pozit.pozitserver.user.domain.User;
 import com.pozit.pozitserver.user.dto.request.NotificationSettingRequest;
 import com.pozit.pozitserver.user.dto.request.UserUpdateRequest;
+import com.pozit.pozitserver.user.dto.request.UserWithdrawalRequest;
 import com.pozit.pozitserver.user.dto.response.UserInfoResponse;
 import com.pozit.pozitserver.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +36,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final AuthTokenService authTokenService;
+    private final AppleClient appleClient;
     private final LikeRepository likeRepository;
     private final FeedbackRepository feedbackRepository;
     private final PozingRepository pozingRepository;
@@ -91,10 +95,15 @@ public class UserService {
     }
 
     @Transactional
-    public void withdraw(User user) {
+    public void withdraw(
+            User user,
+            UserWithdrawalRequest request
+    ) {
         if (user.isDeleted()) {
             throw new BusinessException(ErrorCode.COMMON401);
         }
+
+        revokeAppleAuthorizationIfNeeded(user, request);
 
         List<Pozing> pozings = pozingRepository.findByUser(user);
         List<String> pozingObjectKeys = pozings.stream()
@@ -110,6 +119,24 @@ public class UserService {
         userRepository.saveAndFlush(user);
 
         deletePozingObjectsAfterCommit(pozingObjectKeys);
+    }
+
+    private void revokeAppleAuthorizationIfNeeded(
+            User user,
+            UserWithdrawalRequest request
+    ) {
+        if (user.getProvider() != SocialProvider.APPLE) {
+            return;
+        }
+
+        if (request == null) {
+            throw new BusinessException(ErrorCode.APPLE_AUTHORIZATION_CODE_REQUIRED);
+        }
+
+        appleClient.revokeAuthorizationCode(
+                request.appleAuthorizationCode(),
+                request.applePlatform()
+        );
     }
 
     private void deletePozingObjectsAfterCommit(List<String> pozingObjectKeys) {

@@ -4,14 +4,18 @@ import com.pozit.pozitserver.global.auth.apple.jwt.AppleJwtHeader;
 import com.pozit.pozitserver.global.auth.apple.jwt.AppleTokenClaims;
 import com.pozit.pozitserver.global.auth.dto.response.apple.ApplePublicKey;
 import com.pozit.pozitserver.global.auth.dto.response.apple.ApplePublicKeyResponse;
+import com.pozit.pozitserver.global.auth.dto.response.apple.AppleTokenResponse;
 import com.pozit.pozitserver.global.auth.ios.AppleIdentityTokenRequest;
+import com.pozit.pozitserver.global.auth.ios.ApplePlatform;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
 import io.jsonwebtoken.Claims;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientException;
 
@@ -27,8 +31,15 @@ import java.util.Collection;
 @Slf4j
 public class AppleClient {
 
+    private static final String APPLE_TOKEN_URI = "https://appleid.apple.com/auth/token";
+    private static final String APPLE_REVOKE_URI = "https://appleid.apple.com/auth/revoke";
+    private static final String GRANT_TYPE_AUTHORIZATION_CODE = "authorization_code";
+    private static final String TOKEN_TYPE_HINT_ACCESS_TOKEN = "access_token";
+    private static final String TOKEN_TYPE_HINT_REFRESH_TOKEN = "refresh_token";
+
     private final AppleJwtProvider appleJwtProvider;
     private final ApplePublicKeyGenerator applePublicKeyGenerator;
+    private final AppleClientSecretProvider appleClientSecretProvider;
     private final AppleProperties appleProperties;
     private final WebClient.Builder webClientBuilder;
 
@@ -85,6 +96,28 @@ public class AppleClient {
 
     }
 
+    public void revokeAuthorizationCode(
+            String authorizationCode,
+            ApplePlatform platform
+    ) {
+        validateAuthorizationCodeRequest(authorizationCode, platform);
+
+        String clientId = resolveClientId(platform);
+        String clientSecret = appleClientSecretProvider.createClientSecret(clientId);
+        AppleTokenResponse tokenResponse = requestToken(
+                authorizationCode,
+                clientId,
+                clientSecret
+        );
+
+        String token = resolveRevocableToken(tokenResponse);
+        String tokenTypeHint = tokenResponse.refreshToken() != null && !tokenResponse.refreshToken().isBlank()
+                ? TOKEN_TYPE_HINT_REFRESH_TOKEN
+                : TOKEN_TYPE_HINT_ACCESS_TOKEN;
+
+        revokeToken(token, tokenTypeHint, clientId, clientSecret);
+    }
+
     public ApplePublicKeyResponse getPublicKey(){
         try {
             ApplePublicKeyResponse response = webClientBuilder.build()
@@ -107,6 +140,91 @@ public class AppleClient {
             throw new BusinessException(ErrorCode.INVALID_APPLE_IDENTITY_TOKEN);
         }
 
+    }
+
+    private AppleTokenResponse requestToken(
+            String authorizationCode,
+            String clientId,
+            String clientSecret
+    ) {
+        try {
+            AppleTokenResponse response = webClientBuilder.build()
+                    .post()
+                    .uri(APPLE_TOKEN_URI)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(BodyInserters
+                            .fromFormData("client_id", clientId)
+                            .with("client_secret", clientSecret)
+                            .with("code", authorizationCode)
+                            .with("grant_type", GRANT_TYPE_AUTHORIZATION_CODE))
+                    .retrieve()
+                    .bodyToMono(AppleTokenResponse.class)
+                    .block();
+
+            if (response == null
+                    || (isBlank(response.accessToken()) && isBlank(response.refreshToken()))) {
+                throw new BusinessException(ErrorCode.APPLE_TOKEN_REVOKE_FAILED);
+            }
+
+            return response;
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (WebClientException | IllegalArgumentException exception) {
+            log.warn("Failed to exchange Apple authorization code for revoke", exception);
+            throw new BusinessException(ErrorCode.APPLE_TOKEN_REVOKE_FAILED);
+        }
+    }
+
+    private void revokeToken(
+            String token,
+            String tokenTypeHint,
+            String clientId,
+            String clientSecret
+    ) {
+        try {
+            webClientBuilder.build()
+                    .post()
+                    .uri(APPLE_REVOKE_URI)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(BodyInserters
+                            .fromFormData("client_id", clientId)
+                            .with("client_secret", clientSecret)
+                            .with("token", token)
+                            .with("token_type_hint", tokenTypeHint))
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
+        } catch (WebClientException | IllegalArgumentException exception) {
+            log.warn("Failed to revoke Apple token", exception);
+            throw new BusinessException(ErrorCode.APPLE_TOKEN_REVOKE_FAILED);
+        }
+    }
+
+    private String resolveRevocableToken(AppleTokenResponse tokenResponse) {
+        if (!isBlank(tokenResponse.refreshToken())) {
+            return tokenResponse.refreshToken();
+        }
+        return tokenResponse.accessToken();
+    }
+
+    private String resolveClientId(ApplePlatform platform) {
+        return switch (platform) {
+            case IOS -> appleProperties.bundleId();
+            case ANDROID -> appleProperties.serviceId();
+        };
+    }
+
+    private void validateAuthorizationCodeRequest(
+            String authorizationCode,
+            ApplePlatform platform
+    ) {
+        if (isBlank(authorizationCode) || platform == null) {
+            throw new BusinessException(ErrorCode.APPLE_AUTHORIZATION_CODE_REQUIRED);
+        }
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private void validateAudience(Claims claims, String expectedAudience){

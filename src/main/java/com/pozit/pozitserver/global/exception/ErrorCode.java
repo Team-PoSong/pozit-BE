@@ -55,6 +55,9 @@ public enum ErrorCode {
     INVALID_APPLE_IDENTITY_TOKEN(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_1", "유효하지 않은 Apple identity token입니다."),
     INVALID_APPLE_TOKEN_ISSUE(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_2", "Apple identity token의 issuer가 올바르지 않습니다."),
     NOT_FOUND_APPLE_IDENTITY_TOKEN_SUBJECT(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_3", "Apple identity token에서 회원 고유 식별값을 찾을 수 없습니다."),
+    APPLE_AUTHORIZATION_CODE_REQUIRED(HttpStatus.BAD_REQUEST, "APPLELOGIN400_1", "Apple 회원 탈퇴에는 authorizationCode와 platform이 필요합니다."),
+    APPLE_TOKEN_REVOKE_FAILED(HttpStatus.BAD_GATEWAY, "APPLELOGIN502_1", "Apple 계정 연동 해제에 실패했습니다."),
+    APPLE_CLIENT_SECRET_CONFIG_MISSING(HttpStatus.INTERNAL_SERVER_ERROR, "APPLELOGIN500_1", "Apple client secret 설정이 누락되었습니다."),
 
     //Tour API
     TOUR_API_REQUEST_FAILED(HttpStatus.BAD_GATEWAY,"TOURAPI502_1","관광공사 API 요청에 실패했습니다."),
