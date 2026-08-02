@@ -3,6 +3,7 @@ package com.pozit.pozitserver.pozing.repository;
 import com.pozit.pozitserver.course.domain.CourseSpot;
 import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.travel.domain.Travel;
+import com.pozit.pozitserver.user.domain.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -12,6 +13,8 @@ import java.util.List;
 public interface PozingRepository extends JpaRepository<Pozing, Long> {
 
     List<Pozing> findByCourseSpotIn(List<CourseSpot> courseSpots);
+
+    List<Pozing> findByUser(User user);
 
     long countByCourseSpot_Course_Travel(Travel travel);
 

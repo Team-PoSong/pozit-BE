@@ -66,6 +66,9 @@ public class CurrentUserArgumentResolver
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMON401));
+        if (user.isDeleted()) {
+            throw new BusinessException(ErrorCode.COMMON401);
+        }
         return user;
     }
 }

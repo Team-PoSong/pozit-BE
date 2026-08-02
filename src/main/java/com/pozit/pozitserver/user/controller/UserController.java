@@ -157,4 +157,33 @@ public class UserController {
         userService.updateNotificationSettings(user, request);
         return SuccessResponse.ok();
     }
+
+    @DeleteMapping("/me")
+    @Operation(
+            summary = "회원 탈퇴",
+            description = "현재 로그인한 사용자의 계정을 탈퇴 처리합니다. 좋아요, 피드백, 포징 영상 정보는 삭제하고, 공유 여행 이력 보호를 위해 사용자 레코드는 삭제하지 않고 비식별화합니다. Redis에 저장된 모든 기기의 Refresh Token도 함께 삭제됩니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "탈퇴 성공"),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "인증되지 않은 요청",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON401",
+                                      "message": "인증되지 않은 요청입니다."
+                                    }
+                                    """)
+                    )
+            )
+    })
+    public SuccessResponse<Void> withdraw(
+            @CurrentUser User user
+    ) {
+        userService.withdraw(user);
+        return SuccessResponse.ok();
+    }
 }

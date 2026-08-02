@@ -15,6 +15,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -65,6 +66,14 @@ public class AuthTokenService {
         stringRedisTemplate.delete(refreshTokenKey(userId, deviceId));
     }
 
+    public void logoutAllDevices(Long userId) {
+        Set<String> keys = stringRedisTemplate.keys(refreshTokenKeyPattern(userId));
+        if (keys == null || keys.isEmpty()) {
+            return;
+        }
+        stringRedisTemplate.delete(keys);
+    }
+
     private Long validateStoredRefreshToken(
             String refreshToken,
             String deviceId
@@ -99,6 +108,10 @@ public class AuthTokenService {
             String deviceId
     ) {
         return REFRESH_TOKEN_KEY_PREFIX + userId + ":" + deviceId;
+    }
+
+    private String refreshTokenKeyPattern(Long userId) {
+        return REFRESH_TOKEN_KEY_PREFIX + userId + ":*";
     }
 
     private String hash(String token) {
