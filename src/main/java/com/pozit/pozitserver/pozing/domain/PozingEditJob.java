@@ -21,6 +21,8 @@ import java.time.LocalDateTime;
 )
 public class PozingEditJob {
 
+    private static final int ERROR_MESSAGE_MAX_LENGTH = 1000;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -88,8 +90,20 @@ public class PozingEditJob {
 
     public void fail(String errorMessage) {
         this.status = PozingEditJobStatus.FAILED;
-        this.errorMessage = errorMessage;
+        this.errorMessage = truncateErrorMessage(errorMessage);
         this.completedAt = LocalDateTime.now();
         this.retryCount++;
+    }
+
+    private String truncateErrorMessage(String errorMessage) {
+        if (errorMessage == null) {
+            return null;
+        }
+
+        if (errorMessage.length() <= ERROR_MESSAGE_MAX_LENGTH) {
+            return errorMessage;
+        }
+
+        return errorMessage.substring(0, ERROR_MESSAGE_MAX_LENGTH);
     }
 }

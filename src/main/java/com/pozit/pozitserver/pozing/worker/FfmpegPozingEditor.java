@@ -151,6 +151,11 @@ public class FfmpegPozingEditor {
             }
         }
 
+        if (memberCount == 1) {
+            filter.append("[v0]copy[outv]");
+            return filter.toString();
+        }
+
         for (int memberIndex = 0; memberIndex < memberCount; memberIndex++) {
             filter.append("[v").append(memberIndex).append("]");
         }

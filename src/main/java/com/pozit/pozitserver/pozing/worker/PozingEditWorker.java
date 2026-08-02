@@ -53,11 +53,7 @@ public class PozingEditWorker {
 
     @Scheduled(fixedDelayString = "${pozing.edit.worker.fixed-delay-ms:1000}")
     public void consumeOne() {
-        List<MapRecord<String, Object, Object>> records = stringRedisTemplate.opsForStream().read(
-                Consumer.from(GROUP_NAME, CONSUMER_NAME),
-                StreamReadOptions.empty().count(1).block(Duration.ofSeconds(1)),
-                StreamOffset.create(PozingEditQueuePublisher.STREAM_KEY, ReadOffset.lastConsumed())
-        );
+        List<MapRecord<String, Object, Object>> records = readRecords();
 
         if (records == null || records.isEmpty()) {
             return;
@@ -72,7 +68,11 @@ public class PozingEditWorker {
                 pozingEditJobProcessor.process(jobId);
             } catch (Exception e) {
                 log.error("Failed to process pozing edit job. jobId={}", jobId, e);
-                pozingEditJobProcessor.fail(jobId, e.getMessage());
+                try {
+                    pozingEditJobProcessor.fail(jobId, e.getMessage());
+                } catch (Exception failException) {
+                    log.error("Failed to mark pozing edit job as failed. jobId={}", jobId, failException);
+                }
             }
 
             stringRedisTemplate.opsForStream().acknowledge(
@@ -80,6 +80,22 @@ public class PozingEditWorker {
                     GROUP_NAME,
                     record.getId()
             );
+        }
+    }
+
+    private List<MapRecord<String, Object, Object>> readRecords() {
+        try {
+            return stringRedisTemplate.opsForStream().read(
+                    Consumer.from(GROUP_NAME, CONSUMER_NAME),
+                    StreamReadOptions.empty().count(1).block(Duration.ofSeconds(1)),
+                    StreamOffset.create(PozingEditQueuePublisher.STREAM_KEY, ReadOffset.lastConsumed())
+            );
+        } catch (RedisSystemException e) {
+            if (Objects.toString(e.getMessage(), "").contains("NOGROUP")) {
+                initializeConsumerGroup();
+                return List.of();
+            }
+            throw e;
         }
     }
 }
