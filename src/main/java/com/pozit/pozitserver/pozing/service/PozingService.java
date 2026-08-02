@@ -54,7 +54,6 @@ public class PozingService {
     private final TravelRepository travelRepository;
     private final PozingEditQueuePublisher pozingEditQueuePublisher;
     private final PozingEditS3Storage pozingEditS3Storage;
-    private final PozingUploadSessionStore pozingUploadSessionStore;
     private final PlatformTransactionManager transactionManager;
 
     /**
@@ -79,14 +78,6 @@ public class PozingService {
                 PRESIGNED_URL_EXPIRATION
         );
 
-        pozingUploadSessionStore.save(
-                uploadId,
-                user.getId(),
-                courseSpotId,
-                key,
-                PRESIGNED_URL_EXPIRATION
-        );
-
         return new PozingPresignedUrlResponse(
                 presignedUrl.presignedUrl(),
                 uploadId
@@ -101,19 +92,13 @@ public class PozingService {
             User user,
             PozingSaveRequest request
     ) {
-        PozingUploadSessionStore.PozingUploadSession uploadSession =
-                pozingUploadSessionStore.get(request.uploadId());
 
-        if (!uploadSession.userId().equals(user.getId())) {
-            throw new BusinessException(ErrorCode.POZING_UPLOAD_SESSION_NOT_FOUND);
-        }
-
-        CourseSpot courseSpot = courseSpotRepository.findById(uploadSession.courseSpotId())
+        CourseSpot courseSpot = courseSpotRepository.findById(request.courseSpotId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.COURSE_SPOT_NOT_FOUND));
 
         validateMember(courseSpot, user);
 
-        if (!s3Service.exists(uploadSession.objectKey())) {
+        if (!s3Service.exists(request.objectKey())) {
             throw new BusinessException(ErrorCode.POZING_UPLOAD_OBJECT_NOT_FOUND);
         }
 
@@ -121,12 +106,9 @@ public class PozingService {
                 Pozing.builder()
                         .courseSpot(courseSpot)
                         .user(user)
-                        .pozingObjectKey(uploadSession.objectKey())
-                        .thumbnailUrl(request.thumbnailUrl())
+                        .pozingObjectKey(request.objectKey())
                         .build()
         );
-
-        pozingUploadSessionStore.delete(request.uploadId());
 
         //모든 멤버들이 포징 업데이트 완료 시 VISITED로 상태 변경
         updateCourseSpotStatusIfAllMembersSaved(courseSpot);
