@@ -4,6 +4,7 @@ import com.pozit.pozitserver.pozing.domain.PozingEditJob;
 import com.pozit.pozitserver.pozing.domain.PozingEditJobStatus;
 import com.pozit.pozitserver.travel.domain.Travel;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -46,7 +47,8 @@ public interface PozingEditJobRepository extends JpaRepository<PozingEditJob, Lo
             """)
     List<PozingEditJob> findExpiredCompletedJobs(
             @Param("status") PozingEditJobStatus status,
-            @Param("now") LocalDateTime now
+            @Param("now") LocalDateTime now,
+            Pageable pageable
     );
 
     @Query("""

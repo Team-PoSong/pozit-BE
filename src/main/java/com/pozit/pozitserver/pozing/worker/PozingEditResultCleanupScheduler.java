@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +35,10 @@ public class PozingEditResultCleanupScheduler {
 
         List<PozingEditJob> expiredJobs = pozingEditJobRepository.findExpiredCompletedJobs(
                 PozingEditJobStatus.COMPLETED,
-                LocalDateTime.now()
+                LocalDateTime.now(),
+                PageRequest.of(
+                        0,100
+                )
         );
 
         for (PozingEditJob job : expiredJobs) {
