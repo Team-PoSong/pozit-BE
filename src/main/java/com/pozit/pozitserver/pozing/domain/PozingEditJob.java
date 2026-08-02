@@ -1,0 +1,134 @@
+package com.pozit.pozitserver.pozing.domain;
+
+import com.pozit.pozitserver.travel.domain.Travel;
+import com.pozit.pozitserver.user.domain.User;
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Table(
+        name = "pozing_edit_jobs",
+        indexes = {
+                @Index(name = "idx_pozing_edit_job_travel_status", columnList = "travel_id,status"),
+                @Index(name = "idx_pozing_edit_job_request_user", columnList = "request_user_id")
+        }
+)
+public class PozingEditJob {
+
+    private static final int ERROR_MESSAGE_MAX_LENGTH = 1000;
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "travel_id", nullable = false)
+    private Travel travel;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "request_user_id", nullable = false)
+    private User requestUser;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private PozingEditJobStatus status;
+
+    @Column(name = "result_s3_key")
+    private String resultS3Key;
+
+    @Column(name = "error_message", length = 1000)
+    private String errorMessage;
+
+    @Column(name = "retry_count", nullable = false)
+    private int retryCount;
+
+    @Column(name = "cleanup_retry_count", nullable = false)
+    private int cleanupRetryCount;
+
+    @Column(name = "cleanup_last_attempt_at")
+    private LocalDateTime cleanupLastAttemptAt;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "started_at")
+    private LocalDateTime startedAt;
+
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+
+    public static PozingEditJob queued(Travel travel, User requestUser) {
+        PozingEditJob job = new PozingEditJob();
+        job.travel = travel;
+        job.requestUser = requestUser;
+        job.status = PozingEditJobStatus.QUEUED;
+        job.retryCount = 0;
+        job.cleanupRetryCount = 0;
+        return job;
+    }
+
+    @PrePersist
+    private void prePersist() {
+        this.createdAt = LocalDateTime.now();
+    }
+
+    public void start() {
+        this.status = PozingEditJobStatus.PROCESSING;
+        this.startedAt = LocalDateTime.now();
+        this.errorMessage = null;
+    }
+
+    public void complete(String resultS3Key, LocalDateTime expiresAt) {
+        this.status = PozingEditJobStatus.COMPLETED;
+        this.resultS3Key = resultS3Key;
+        this.completedAt = LocalDateTime.now();
+        this.expiresAt = expiresAt;
+        this.errorMessage = null;
+        this.cleanupRetryCount = 0;
+        this.cleanupLastAttemptAt = null;
+    }
+
+    public void fail(String errorMessage) {
+        this.status = PozingEditJobStatus.FAILED;
+        this.errorMessage = truncateErrorMessage(errorMessage);
+        this.completedAt = LocalDateTime.now();
+        this.retryCount++;
+    }
+
+    public void expire() {
+        this.status = PozingEditJobStatus.DELETED;
+        this.resultS3Key = null;
+        this.errorMessage = null;
+    }
+
+    public void recordCleanupFailure(String errorMessage, int maxAttempts) {
+        this.cleanupRetryCount++;
+        this.cleanupLastAttemptAt = LocalDateTime.now();
+        this.errorMessage = truncateErrorMessage(errorMessage);
+
+        if (this.cleanupRetryCount >= maxAttempts) {
+            this.status = PozingEditJobStatus.DELETE_FAILED;
+        }
+    }
+
+    private String truncateErrorMessage(String errorMessage) {
+        if (errorMessage == null) {
+            return null;
+        }
+
+        if (errorMessage.length() <= ERROR_MESSAGE_MAX_LENGTH) {
+            return errorMessage;
+        }
+
+        return errorMessage.substring(0, ERROR_MESSAGE_MAX_LENGTH);
+    }
+}

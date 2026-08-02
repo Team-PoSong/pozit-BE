@@ -6,6 +6,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+import java.util.UUID;
+
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -61,6 +64,9 @@ public class User {
     @Column(name = "noti_notice_enabled", nullable = false)
     private Boolean notiNoticeEnabled = true;
 
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
     @Builder
     private User(
             SocialProvider provider,
@@ -98,5 +104,22 @@ public class User {
         if (notiPozingEnabled != null) this.notiPozingEnabled = notiPozingEnabled;
         if (notiCourseEnabled != null) this.notiCourseEnabled = notiCourseEnabled;
         if (notiNoticeEnabled != null) this.notiNoticeEnabled = notiNoticeEnabled;
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
+    public void withdraw() {
+        String suffix = id + ":" + UUID.randomUUID();
+        this.socialId = "deleted:" + suffix;
+        this.nickname = "탈퇴한 사용자_" + id;
+        this.deletedAt = LocalDateTime.now();
+        this.pushEnabled = false;
+        this.notiTravelEnabled = false;
+        this.notiGroupEnabled = false;
+        this.notiPozingEnabled = false;
+        this.notiCourseEnabled = false;
+        this.notiNoticeEnabled = false;
     }
 }

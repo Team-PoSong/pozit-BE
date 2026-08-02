@@ -4,7 +4,6 @@ import com.pozit.pozitserver.global.auth.apple.AppleClient;
 import com.pozit.pozitserver.global.auth.apple.jwt.AppleTokenClaims;
 import com.pozit.pozitserver.global.auth.dto.response.LoginTokenResponse;
 import com.pozit.pozitserver.global.auth.ios.AppleIdentityTokenRequest;
-import com.pozit.pozitserver.global.auth.jwt.JwtTokenProvider;
 import com.pozit.pozitserver.user.domain.Role;
 import com.pozit.pozitserver.user.domain.SocialProvider;
 import com.pozit.pozitserver.user.domain.User;
@@ -24,7 +23,7 @@ public class AuthAppleService {
 
     private final AppleClient appleClient;
     private final UserRepository userRepository;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final AuthTokenService authTokenService;
 
     public LoginTokenResponse loginWithApple(AppleIdentityTokenRequest request) {
         AppleTokenClaims claims = appleClient.loginWithAppleIdentityToken(request);
@@ -50,13 +49,7 @@ public class AuthAppleService {
                                 .build()
                 ));
 
-        String accessToken = jwtTokenProvider.createAccessToken(user);
-        return LoginTokenResponse.of(
-                accessToken,
-                jwtTokenProvider.getAccessTokenExpirationSeconds(),
-                user,
-                isNewUser
-        );
+        return authTokenService.issueLoginTokens(user, request.deviceId(), isNewUser);
     }
 
     private String resolveNickname(
