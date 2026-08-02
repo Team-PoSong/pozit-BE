@@ -28,8 +28,8 @@ public class Pozing {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "pozing_url", nullable = false)
-    private String pozingUrl;
+    @Column(name = "pozing_object_key", nullable = false)
+    private String pozingObjectKey;
 
     @Column(name = "thumbnail_url")
     private String thumbnailUrl;
@@ -43,10 +43,10 @@ public class Pozing {
     }
 
     @Builder
-    private Pozing(CourseSpot courseSpot, User user, String pozingUrl, String thumbnailUrl) {
+    private Pozing(CourseSpot courseSpot, User user, String pozingObjectKey, String thumbnailUrl) {
         this.courseSpot = courseSpot;
         this.user = user;
-        this.pozingUrl = pozingUrl;
+        this.pozingObjectKey = pozingObjectKey;
         this.thumbnailUrl = thumbnailUrl;
     }
 }

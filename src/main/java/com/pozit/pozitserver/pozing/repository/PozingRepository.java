@@ -31,4 +31,15 @@ public interface PozingRepository extends JpaRepository<Pozing, Long> {
             order by cs.id asc, p.createdAt asc, p.id asc
             """)
     List<Pozing> findAllWithUserByCourseSpotIn(@Param("courseSpots") List<CourseSpot> courseSpots);
+
+    @Query("""
+            select p
+            from Pozing p
+            join fetch p.user
+            join fetch p.courseSpot cs
+            join fetch cs.course c
+            where c.travel.id = :travelId
+            order by c.dayNumber asc, cs.orderIndex asc, p.createdAt asc, p.id asc
+            """)
+    List<Pozing> findAllByTravelIdForEdit(@Param("travelId") Long travelId);
 }

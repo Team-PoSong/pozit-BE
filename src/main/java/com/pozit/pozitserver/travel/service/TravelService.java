@@ -29,6 +29,7 @@ import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
 import com.pozit.pozitserver.user.domain.User;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,11 +51,13 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@Slf4j
 public class TravelService {
 
     private static final int SEARCH_LIMIT = 10;
     private static final String INVITE_CODE_UNIQUE_CONSTRAINT_NAME = "uk_travel_invite_code";
     private static final Duration BACKGROUND_IMAGE_PRESIGNED_URL_EXPIRATION = Duration.ofMinutes(10);
+    private static final Duration POZING_GET_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final String BACKGROUND_IMAGE_CONTENT_TYPE = "image/jpeg";
 
     private final TravelRepository travelRepository;
@@ -491,7 +494,7 @@ public class TravelService {
                             .map(p -> new PublicTravelDetailResponse.PublicPozingInfo(
                                     p.getId(),
                                     p.getUser().getNickname(),
-                                    p.getPozingUrl(),
+                                    s3Service.createGetPresignedUrl(p.getPozingObjectKey(), POZING_GET_URL_EXPIRATION),
                                     p.getThumbnailUrl()
                             ))
                             .toList();
@@ -626,7 +629,7 @@ public class TravelService {
                                     p.getId(),
                                     p.getUser().getId(),
                                     p.getUser().getNickname(),
-                                    p.getPozingUrl(),
+                                    s3Service.createGetPresignedUrl(p.getPozingObjectKey(), POZING_GET_URL_EXPIRATION),
                                     p.getThumbnailUrl()
                             ))
                             .toList();

@@ -26,7 +26,6 @@ public record CourseDetailResponse(
     public record PozingInfo(
             Long pozingId,
             String pozingUrl,
-            String thumbnailUrl,
             String nickname
     ) {}
 }

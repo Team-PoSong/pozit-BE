@@ -41,4 +41,13 @@ public interface TravelMemberRepository extends JpaRepository<TravelMember, Long
         where tm.travel=:travel
         """)
     long countByTravel(@Param("travel") Travel travel);
+
+    @Query("""
+            select tm
+            from TravelMember tm
+            join fetch tm.user
+            where tm.travel.id = :travelId
+            order by tm.joinedAt asc, tm.id asc
+            """)
+    List<TravelMember> findAllByTravelIdForEdit(@Param("travelId") Long travelId);
 }
