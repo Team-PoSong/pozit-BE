@@ -209,33 +209,44 @@ public class FfmpegPozingEditor {
     private String run(List<String> command) {
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.redirectErrorStream(true);
-        Path outputFile;
+        Path outputFile = null;
 
         try {
-            outputFile=Files.createTempFile("ffmpeg-output-",".log");
+            outputFile = Files.createTempFile("ffmpeg-output-", ".log");
             processBuilder.redirectOutput(outputFile.toFile());
             Process process = processBuilder.start();
-            boolean finished=process.waitFor(FFMPEG_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            boolean finished = process.waitFor(FFMPEG_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
-            if(!finished){
+            if (!finished) {
                 process.destroyForcibly();
                 throw new IllegalStateException("FFmpeg command timed out after %d seconds.".formatted(FFMPEG_TIMEOUT_SECONDS));
             }
-            String output=Files.readString(outputFile);
-            int exitCode=process.exitValue();
+
+            String output = Files.readString(outputFile);
+            int exitCode = process.exitValue();
 
             if (exitCode != 0) {
                 throw new IllegalStateException("FFmpeg command failed. exitCode=%d, output=%s"
                         .formatted(exitCode, output));
             }
 
+            return output;
+
         } catch (IOException e) {
             throw new IllegalStateException("Failed to execute FFmpeg command.", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("FFmpeg command was interrupted.", e);
+        } finally {
+            if (outputFile != null) {
+                try {
+                    Files.deleteIfExists(outputFile);
+                } catch (IOException ignored) {
+                }
+            }
         }
     }
+
 
     private int calculateEvenTileHeight(int memberCount) {
         return Math.max(2, (OUTPUT_HEIGHT / memberCount) / 2 * 2);
