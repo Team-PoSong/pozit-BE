@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -107,7 +108,8 @@ public class AppleClient {
         AppleTokenResponse tokenResponse = requestToken(
                 authorizationCode,
                 clientId,
-                clientSecret
+                clientSecret,
+                platform
         );
 
         String token = resolveRevocableToken(tokenResponse);
@@ -115,7 +117,7 @@ public class AppleClient {
                 ? TOKEN_TYPE_HINT_REFRESH_TOKEN
                 : TOKEN_TYPE_HINT_ACCESS_TOKEN;
 
-        revokeToken(token, tokenTypeHint, clientId, clientSecret);
+        revokeToken(token, tokenTypeHint, clientId, clientSecret, platform);
     }
 
     public ApplePublicKeyResponse getPublicKey(){
@@ -145,7 +147,8 @@ public class AppleClient {
     private AppleTokenResponse requestToken(
             String authorizationCode,
             String clientId,
-            String clientSecret
+            String clientSecret,
+            ApplePlatform platform
     ) {
         try {
             AppleTokenResponse response = webClientBuilder.build()
@@ -169,8 +172,18 @@ public class AppleClient {
             return response;
         } catch (BusinessException exception) {
             throw exception;
+        } catch (WebClientResponseException exception) {
+            logAppleApiFailure(
+                    "token",
+                    platform,
+                    clientId,
+                    null,
+                    exception
+            );
+            throw new BusinessException(ErrorCode.APPLE_TOKEN_REVOKE_FAILED);
         } catch (WebClientException | IllegalArgumentException exception) {
-            log.warn("Failed to exchange Apple authorization code for revoke", exception);
+            log.warn("Failed to exchange Apple authorization code for revoke. platform={}, clientId={}",
+                    platform, clientId, exception);
             throw new BusinessException(ErrorCode.APPLE_TOKEN_REVOKE_FAILED);
         }
     }
@@ -179,7 +192,8 @@ public class AppleClient {
             String token,
             String tokenTypeHint,
             String clientId,
-            String clientSecret
+            String clientSecret,
+            ApplePlatform platform
     ) {
         try {
             webClientBuilder.build()
@@ -194,10 +208,38 @@ public class AppleClient {
                     .retrieve()
                     .toBodilessEntity()
                     .block();
+        } catch (WebClientResponseException exception) {
+            logAppleApiFailure(
+                    "revoke",
+                    platform,
+                    clientId,
+                    tokenTypeHint,
+                    exception
+            );
+            throw new BusinessException(ErrorCode.APPLE_TOKEN_REVOKE_FAILED);
         } catch (WebClientException | IllegalArgumentException exception) {
-            log.warn("Failed to revoke Apple token", exception);
+            log.warn("Failed to revoke Apple token. platform={}, clientId={}, tokenTypeHint={}",
+                    platform, clientId, tokenTypeHint, exception);
             throw new BusinessException(ErrorCode.APPLE_TOKEN_REVOKE_FAILED);
         }
+    }
+
+    private void logAppleApiFailure(
+            String apiName,
+            ApplePlatform platform,
+            String clientId,
+            String tokenTypeHint,
+            WebClientResponseException exception
+    ) {
+        log.warn(
+                "Apple {} API failed. status={}, responseBody={}, platform={}, clientId={}, tokenTypeHint={}",
+                apiName,
+                exception.getStatusCode(),
+                exception.getResponseBodyAsString(),
+                platform,
+                clientId,
+                tokenTypeHint
+        );
     }
 
     private String resolveRevocableToken(AppleTokenResponse tokenResponse) {
