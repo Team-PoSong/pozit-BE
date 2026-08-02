@@ -74,8 +74,8 @@ public class AuthTokenService {
             String deviceId,
             String authorizationHeader
     ) {
-        stringRedisTemplate.delete(refreshTokenKey(userId, deviceId));
         blacklistAccessToken(extractBearerToken(authorizationHeader));
+        stringRedisTemplate.delete(refreshTokenKey(userId, deviceId));
     }
 
     public void logoutAllDevices(Long userId) {

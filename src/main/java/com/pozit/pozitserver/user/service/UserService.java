@@ -20,16 +20,17 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Transactional(readOnly = true)
 public class UserService {
 
     private static final String NICKNAME_UNIQUE_CONSTRAINT_NAME = "uk_member_nickname";
@@ -41,7 +42,9 @@ public class UserService {
     private final FeedbackRepository feedbackRepository;
     private final PozingRepository pozingRepository;
     private final S3Service s3Service;
+    private final PlatformTransactionManager transactionManager;
 
+    @Transactional(readOnly = true)
     public UserInfoResponse getMyInfo(User user) {
         return new UserInfoResponse(
                 user.getId(),
@@ -94,7 +97,6 @@ public class UserService {
         userRepository.saveAndFlush(user);
     }
 
-    @Transactional
     public void withdraw(
             User user,
             UserWithdrawalRequest request
@@ -105,6 +107,23 @@ public class UserService {
 
         revokeAppleAuthorizationIfNeeded(user, request);
 
+        withdrawInTransaction(user);
+    }
+
+    private void withdrawInTransaction(User user) {
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.executeWithoutResult(status -> {
+            User persistedUser = userRepository.findById(user.getId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.COMMON401));
+            if (persistedUser.isDeleted()) {
+                throw new BusinessException(ErrorCode.COMMON401);
+            }
+
+            deleteUserData(persistedUser);
+        });
+    }
+
+    private void deleteUserData(User user) {
         List<Pozing> pozings = pozingRepository.findByUser(user);
         List<String> pozingObjectKeys = pozings.stream()
                 .map(Pozing::getPozingObjectKey)
