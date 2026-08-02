@@ -5,5 +5,6 @@ public enum PozingEditJobStatus {
     PROCESSING,
     COMPLETED,
     FAILED,
-    EXPIRED
+    EXPIRED,
+    DELETED
 }

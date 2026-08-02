@@ -96,7 +96,7 @@ public class PozingEditJob {
     }
 
     public void expire() {
-        this.status = PozingEditJobStatus.EXPIRED;
+        this.status = PozingEditJobStatus.DELETED;
         this.resultS3Key = null;
     }
 
