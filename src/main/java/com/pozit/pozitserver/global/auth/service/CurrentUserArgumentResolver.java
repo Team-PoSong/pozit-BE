@@ -23,6 +23,7 @@ public class CurrentUserArgumentResolver
         implements HandlerMethodArgumentResolver {
 
     private final UserRepository userRepository;
+    private final AuthTokenService authTokenService;
 
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
@@ -56,6 +57,7 @@ public class CurrentUserArgumentResolver
         if (!TokenType.ACCESS.name().equals(tokenType)) {
             throw new BusinessException(ErrorCode.COMMON401);
         }
+        authTokenService.validateAccessTokenNotBlacklisted(jwt);
 
         Long userId;
         try {

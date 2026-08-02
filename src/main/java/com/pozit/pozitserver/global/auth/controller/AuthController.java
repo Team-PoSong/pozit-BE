@@ -23,9 +23,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -119,14 +121,15 @@ public class AuthController {
 
     @Operation(
             summary = "로그아웃",
-            description = "현재 로그인한 사용자와 요청 deviceId에 해당하는 기기의 Refresh Token을 Redis에서 삭제합니다. deviceId는 앱 클라이언트가 생성해 보관하는 UUID이며, 카카오/Apple에서 발급받는 값이 아닙니다."
+            description = "현재 로그인한 사용자와 요청 deviceId에 해당하는 기기의 Refresh Token을 Redis에서 삭제하고, 현재 Access Token은 남은 만료 시간 동안 Redis blacklist에 등록해 즉시 사용할 수 없게 합니다. deviceId는 앱 클라이언트가 생성해 보관하는 UUID이며, 카카오/Apple에서 발급받는 값이 아닙니다."
     )
     @PostMapping("/logout")
     public SuccessResponse<Void> logout(
             @CurrentUser User user,
-            @Valid @RequestBody LogoutRequest request
+            @Valid @RequestBody LogoutRequest request,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader
     ) {
-        authTokenService.logout(user.getId(), request.deviceId());
+        authTokenService.logout(user.getId(), request.deviceId(), authorizationHeader);
         return SuccessResponse.ok();
     }
 
