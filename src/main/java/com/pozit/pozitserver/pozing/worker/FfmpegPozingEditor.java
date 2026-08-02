@@ -1,5 +1,7 @@
 package com.pozit.pozitserver.pozing.worker;
 
+import com.pozit.pozitserver.global.exception.BusinessException;
+import com.pozit.pozitserver.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -180,7 +182,7 @@ public class FfmpegPozingEditor {
                     .toList();
             Files.write(concatFile, lines, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to write FFmpeg concat file.", e);
+            throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
         }
 
         run(List.of(
@@ -218,25 +220,24 @@ public class FfmpegPozingEditor {
             boolean finished = process.waitFor(FFMPEG_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
             if (!finished) {
-                process.destroyForcibly();
-                throw new IllegalStateException("FFmpeg command timed out after %d seconds.".formatted(FFMPEG_TIMEOUT_SECONDS));
+                terminate(process);
+                throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
             }
 
             String output = Files.readString(outputFile);
             int exitCode = process.exitValue();
 
             if (exitCode != 0) {
-                throw new IllegalStateException("FFmpeg command failed. exitCode=%d, output=%s"
-                        .formatted(exitCode, output));
+                throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
             }
 
             return output;
 
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to execute FFmpeg command.", e);
+            throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("FFmpeg command was interrupted.", e);
+            throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
         } finally {
             if (outputFile != null) {
                 try {
@@ -244,6 +245,22 @@ public class FfmpegPozingEditor {
                 } catch (IOException ignored) {
                 }
             }
+        }
+    }
+
+    private void terminate(Process process) {
+        if (process == null || !process.isAlive()) {
+            return;
+        }
+
+        process.destroyForcibly();
+        try {
+            if (!process.waitFor(10, TimeUnit.SECONDS)) {
+                throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
         }
     }
 
