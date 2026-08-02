@@ -37,6 +37,13 @@ public enum ErrorCode {
     COURSE_SPOT_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_2", "코스 내 해당 여행지를 찾을 수 없습니다."),
     NOT_VALID_TRAVEL_MEMBER(HttpStatus.FORBIDDEN,"COURSE403_1","해당 유저는 이 여행 코스에 접근 권한이 없습니다."),
 
+    // Pozing
+    POZING_VIDEO_NOT_FOUND(HttpStatus.BAD_REQUEST, "POZING400_1", "편집할 포징 영상이 없습니다."),
+    POZING_UPLOAD_SESSION_NOT_FOUND(HttpStatus.BAD_REQUEST, "POZING400_2", "포징 업로드 요청이 만료되었거나 존재하지 않습니다."),
+    POZING_UPLOAD_OBJECT_NOT_FOUND(HttpStatus.BAD_REQUEST, "POZING400_3", "S3에 업로드된 포징 영상을 찾을 수 없습니다."),
+    POZING_EDIT_JOB_ALREADY_EXISTS(HttpStatus.CONFLICT, "POZING409_1", "이미 처리 중인 포징 편집 작업이 있습니다."),
+    POZING_EDIT_JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "POZING404_1", "포징 편집 작업을 찾을 수 없습니다."),
+
     // Like
     ALREADY_LIKED(HttpStatus.BAD_REQUEST, "LIKE400_1", "이미 찜한 여행입니다."),
     CANNOT_LIKE_OWN_TRAVEL(HttpStatus.BAD_REQUEST, "LIKE400_2", "본인이 참여한 여행은 찜할 수 없습니다."),
