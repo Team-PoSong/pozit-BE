@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 @Component
 @RequiredArgsConstructor
@@ -20,6 +21,7 @@ public class FfmpegPozingEditor {
     private static final int OUTPUT_HEIGHT = 1280;
     private static final int OUTPUT_FPS = 30;
     private static final double MIN_SEGMENT_DURATION_SECONDS = 0.1;
+    private static final long FFMPEG_TIMEOUT_SECONDS = 120;
 
     @Value("${pozing.edit.ffmpeg-path:ffmpeg}")
     private String ffmpegPath;
@@ -207,18 +209,26 @@ public class FfmpegPozingEditor {
     private String run(List<String> command) {
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.redirectErrorStream(true);
+        Path outputFile;
 
         try {
+            outputFile=Files.createTempFile("ffmpeg-output-",".log");
+            processBuilder.redirectOutput(outputFile.toFile());
             Process process = processBuilder.start();
-            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            int exitCode = process.waitFor();
+            boolean finished=process.waitFor(FFMPEG_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+            if(!finished){
+                process.destroyForcibly();
+                throw new IllegalStateException("FFmpeg command timed out after %d seconds.".formatted(FFMPEG_TIMEOUT_SECONDS));
+            }
+            String output=Files.readString(outputFile);
+            int exitCode=process.exitValue();
 
             if (exitCode != 0) {
                 throw new IllegalStateException("FFmpeg command failed. exitCode=%d, output=%s"
                         .formatted(exitCode, output));
             }
 
-            return output;
         } catch (IOException e) {
             throw new IllegalStateException("Failed to execute FFmpeg command.", e);
         } catch (InterruptedException e) {
