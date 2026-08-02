@@ -16,6 +16,7 @@ public enum ErrorCode {
 
     // Auth
     KAKAO_INVALID_ACCESS_TOKEN(HttpStatus.UNAUTHORIZED, "KAKAO401", "유효하지 않은 카카오 액세스 토큰입니다."),
+    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH401_1", "유효하지 않은 Refresh Token입니다."),
 
     // Travel
     INVALID_TRAVEL_PERIOD(HttpStatus.BAD_REQUEST, "TRAVEL400_1", "종료일은 시작일보다 빠를 수 없습니다."),

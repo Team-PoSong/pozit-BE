@@ -93,7 +93,7 @@ public class AppleJwtProvider {
     ){
         try{
             if (!(publicKey instanceof RSAPublicKey rsaPublicKey)) {
-                throw new IllegalArgumentException("Apple public key must be RSA");
+                throw new BusinessException(ErrorCode.INVALID_APPLE_IDENTITY_TOKEN);
             }
 
             return Jwts.parser()
