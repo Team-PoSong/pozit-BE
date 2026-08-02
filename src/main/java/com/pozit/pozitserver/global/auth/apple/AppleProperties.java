@@ -7,6 +7,9 @@ public record AppleProperties(
         String issuer,
         String publicKeyUri,
         String bundleId,
-        String serviceId
+        String serviceId,
+        String teamId,
+        String keyId,
+        String privateKey
 ) {
 }
