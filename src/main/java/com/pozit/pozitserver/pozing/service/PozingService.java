@@ -23,9 +23,13 @@ import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
 import com.pozit.pozitserver.user.domain.User;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
@@ -34,6 +38,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @Transactional(readOnly = true)
 public class PozingService {
 
@@ -50,6 +55,7 @@ public class PozingService {
     private final PozingEditQueuePublisher pozingEditQueuePublisher;
     private final PozingEditS3Storage pozingEditS3Storage;
     private final PozingUploadSessionStore pozingUploadSessionStore;
+    private final PlatformTransactionManager transactionManager;
 
     /**
      * 타임랩스 저장용 presigned url 발급
@@ -198,11 +204,34 @@ public class PozingService {
     private void publishAfterCommit(Long jobId) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
-            public void afterCommit() {
-                pozingEditQueuePublisher.publish(jobId);
+            public void afterCommit(){
+                try{
+                    pozingEditQueuePublisher.publish(jobId);
+                }catch(Exception e){
+                    log.error("Failed to publish pozing edit job. JobId={}",jobId);
+                    markJobFailedInNewTransaction(jobId, e.getMessage());
+                }
             }
         });
     }
+
+    private void markJobFailedInNewTransaction(Long jobId, String errorMessage) {
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
+        transactionTemplate.executeWithoutResult(status -> {
+            PozingEditJob job = pozingEditJobRepository.findByIdForUpdate(jobId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.POZING_EDIT_JOB_NOT_FOUND));
+
+            if (job.getStatus() == PozingEditJobStatus.COMPLETED) {
+                return;
+            }
+
+            job.fail(errorMessage);
+        });
+    }
+
+
 
     private void updateCourseSpotStatusIfAllMembersSaved(CourseSpot courseSpot) {
         long memberCount = travelMemberRepository.countByTravel(

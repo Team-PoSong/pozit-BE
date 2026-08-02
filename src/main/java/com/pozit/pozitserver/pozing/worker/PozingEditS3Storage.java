@@ -3,6 +3,7 @@ package com.pozit.pozitserver.pozing.worker;
 import com.pozit.pozitserver.global.s3.S3Service;
 import com.pozit.pozitserver.pozing.domain.Pozing;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -14,6 +15,7 @@ import java.util.Comparator;
 import java.util.List;
 
 @Component
+@Slf4j
 @RequiredArgsConstructor
 public class PozingEditS3Storage {
 
@@ -79,11 +81,11 @@ public class PozingEditS3Storage {
                         try {
                             Files.deleteIfExists(path);
                         } catch (IOException e) {
-                            throw new IllegalStateException("Failed to delete pozing edit work directory.", e);
+                            log.warn("Failed to delete pozing edit temp file. path={}", path, e);
                         }
                     });
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to delete pozing edit work directory.", e);
+            log.warn("Failed to walk pozing edit work directory for cleanup. workDirectory={}", workDirectory, e);
         }
     }
 }

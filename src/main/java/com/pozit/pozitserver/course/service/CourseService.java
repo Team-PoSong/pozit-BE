@@ -124,7 +124,6 @@ public class CourseService {
                 .map(p -> new CourseDetailResponse.PozingInfo(
                         p.getId(),
                         s3Service.createGetPresignedUrl(p.getPozingObjectKey(), POZING_GET_URL_EXPIRATION),
-                        p.getThumbnailUrl(),
                         p.getUser().getNickname()
                 ))
                 .toList();

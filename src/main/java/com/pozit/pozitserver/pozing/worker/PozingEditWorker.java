@@ -60,18 +60,21 @@ public class PozingEditWorker {
         }
 
         for (MapRecord<String, Object, Object> record : records) {
-            Long jobId = Long.valueOf(
-                    Objects.toString(record.getValue().get(PozingEditQueuePublisher.JOB_ID_FIELD))
-            );
-
             try {
+                Long jobId = extractJobId(record);
                 pozingEditJobProcessor.process(jobId);
-            } catch (Exception e) {
-                log.error("Failed to process pozing edit job. jobId={}", jobId, e);
-                try {
-                    pozingEditJobProcessor.fail(jobId, e.getMessage());
-                } catch (Exception failException) {
-                    log.error("Failed to mark pozing edit job as failed. jobId={}", jobId, failException);
+            } catch (NumberFormatException e) {
+                log.error("Invalid jobId in pozing edit record. recordId={}", record.getId(), e);
+            } catch(Exception e){
+                log.error("Failed to process pozing edit job. recordId={}", record.getId(), e);
+                Long jobId = extractJobIdSafely(record);
+
+                if (jobId != null) {
+                    try {
+                        pozingEditJobProcessor.markJobFailedInNewTransaction(jobId, e.getMessage());
+                    } catch (Exception failException) {
+                        log.error("Failed to mark pozing edit job as failed. jobId={}", jobId, failException);
+                    }
                 }
             }
 
@@ -96,6 +99,25 @@ public class PozingEditWorker {
                 return List.of();
             }
             throw e;
+        }
+    }
+
+    private Long extractJobId(MapRecord<String, Object, Object> record) {
+        Object jobId = record.getValue().get(PozingEditQueuePublisher.JOB_ID_FIELD);
+
+        if (jobId == null) {
+            throw new NumberFormatException("Missing jobId field.");
+        }
+
+        return Long.valueOf(jobId.toString());
+    }
+
+    private Long extractJobIdSafely(MapRecord<String, Object, Object> record) {
+        try {
+            return extractJobId(record);
+        } catch (NumberFormatException e) {
+            log.error("Invalid jobId in pozing edit record. recordId={}", record.getId(), e);
+            return null;
         }
     }
 }

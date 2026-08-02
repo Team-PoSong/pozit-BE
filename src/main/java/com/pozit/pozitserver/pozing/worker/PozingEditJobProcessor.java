@@ -14,6 +14,7 @@ import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -157,8 +158,8 @@ public class PozingEditJobProcessor {
         });
     }
 
-    @Transactional
-    public void fail(Long jobId, String errorMessage) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markJobFailedInNewTransaction(Long jobId, String errorMessage) {
         PozingEditJob job = pozingEditJobRepository.findByIdForUpdate(jobId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POZING_EDIT_JOB_NOT_FOUND));
 
