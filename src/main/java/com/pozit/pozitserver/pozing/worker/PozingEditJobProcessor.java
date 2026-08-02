@@ -36,8 +36,8 @@ public class PozingEditJobProcessor {
     private final FfmpegPozingEditor ffmpegPozingEditor;
     private final TransactionTemplate transactionTemplate;
 
-    @Value("${pozing.edit.result-expiration-hours:24}")
-    private long resultExpirationHours;
+    @Value("${pozing.edit.result-expiration-minutes:10}")
+    private long resultExpirationMinutes;
 
     public void process(Long jobId) {
         StartedJob startedJob = startJob(jobId);
@@ -153,7 +153,7 @@ public class PozingEditJobProcessor {
             PozingEditJob job = pozingEditJobRepository.findByIdForUpdate(jobId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.POZING_EDIT_JOB_NOT_FOUND));
 
-            job.complete(resultS3Key, LocalDateTime.now().plusHours(resultExpirationHours));
+            job.complete(resultS3Key, LocalDateTime.now().plusMinutes(resultExpirationMinutes));
         });
     }
 

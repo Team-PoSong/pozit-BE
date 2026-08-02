@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
@@ -121,6 +122,13 @@ public class S3Service {
             }
             throw e;
         }
+    }
+
+    public void delete(String key) {
+        s3Client.deleteObject(DeleteObjectRequest.builder()
+                .bucket(s3Properties.getBucket())
+                .key(key)
+                .build());
     }
 
     public String extractKeyFromObjectUrl(String objectUrl) {

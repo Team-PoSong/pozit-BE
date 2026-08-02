@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface PozingEditJobRepository extends JpaRepository<PozingEditJob, Long> {
@@ -33,4 +35,17 @@ public interface PozingEditJobRepository extends JpaRepository<PozingEditJob, Lo
             where j.id = :id
             """)
     Optional<PozingEditJob> findByIdWithTravel(@Param("id") Long id);
+
+    @Query("""
+            select j
+            from PozingEditJob j
+            where j.status = :status
+              and j.expiresAt <= :now
+              and j.resultS3Key is not null
+            order by j.expiresAt asc, j.id asc
+            """)
+    List<PozingEditJob> findExpiredCompletedJobs(
+            @Param("status") PozingEditJobStatus status,
+            @Param("now") LocalDateTime now
+    );
 }

@@ -95,6 +95,11 @@ public class PozingEditJob {
         this.retryCount++;
     }
 
+    public void expire() {
+        this.status = PozingEditJobStatus.EXPIRED;
+        this.resultS3Key = null;
+    }
+
     private String truncateErrorMessage(String errorMessage) {
         if (errorMessage == null) {
             return null;
