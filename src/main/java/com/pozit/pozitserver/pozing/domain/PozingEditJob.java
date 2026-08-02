@@ -48,6 +48,12 @@ public class PozingEditJob {
     @Column(name = "retry_count", nullable = false)
     private int retryCount;
 
+    @Column(name = "cleanup_retry_count", nullable = false)
+    private int cleanupRetryCount;
+
+    @Column(name = "cleanup_last_attempt_at")
+    private LocalDateTime cleanupLastAttemptAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -66,6 +72,7 @@ public class PozingEditJob {
         job.requestUser = requestUser;
         job.status = PozingEditJobStatus.QUEUED;
         job.retryCount = 0;
+        job.cleanupRetryCount = 0;
         return job;
     }
 
@@ -86,6 +93,8 @@ public class PozingEditJob {
         this.completedAt = LocalDateTime.now();
         this.expiresAt = expiresAt;
         this.errorMessage = null;
+        this.cleanupRetryCount = 0;
+        this.cleanupLastAttemptAt = null;
     }
 
     public void fail(String errorMessage) {
@@ -98,6 +107,17 @@ public class PozingEditJob {
     public void expire() {
         this.status = PozingEditJobStatus.DELETED;
         this.resultS3Key = null;
+        this.errorMessage = null;
+    }
+
+    public void recordCleanupFailure(String errorMessage, int maxAttempts) {
+        this.cleanupRetryCount++;
+        this.cleanupLastAttemptAt = LocalDateTime.now();
+        this.errorMessage = truncateErrorMessage(errorMessage);
+
+        if (this.cleanupRetryCount >= maxAttempts) {
+            this.status = PozingEditJobStatus.DELETE_FAILED;
+        }
     }
 
     private String truncateErrorMessage(String errorMessage) {

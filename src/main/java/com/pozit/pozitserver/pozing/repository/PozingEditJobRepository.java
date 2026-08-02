@@ -43,11 +43,13 @@ public interface PozingEditJobRepository extends JpaRepository<PozingEditJob, Lo
             where j.status = :status
               and j.expiresAt <= :now
               and j.resultS3Key is not null
+              and j.cleanupRetryCount < :maxAttempts
             order by j.expiresAt asc, j.id asc
             """)
     List<PozingEditJob> findExpiredCompletedJobs(
             @Param("status") PozingEditJobStatus status,
             @Param("now") LocalDateTime now,
+            @Param("maxAttempts") int maxAttempts,
             Pageable pageable
     );
 

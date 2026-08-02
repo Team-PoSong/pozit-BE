@@ -29,6 +29,9 @@ public class PozingEditResultCleanupScheduler {
     @Value("${pozing.edit.processing-timeout-minutes:10}")
     private long processingTimeoutMinutes;
 
+    @Value("${pozing.edit.cleanup.max-delete-attempts:3}")
+    private int maxDeleteAttempts;
+
     @Scheduled(fixedDelayString = "${pozing.edit.cleanup.fixed-delay-ms:60000}")
     public void cleanupExpiredResults() {
         failStaleProcessingJobs();
@@ -44,6 +47,7 @@ public class PozingEditResultCleanupScheduler {
                         job.id(),
                         job.resultS3Key(),
                         e);
+                recordCleanupFailure(job.id(), e.getMessage());
             }
         }
     }
@@ -52,6 +56,7 @@ public class PozingEditResultCleanupScheduler {
         return pozingEditJobRepository.findExpiredCompletedJobs(
                         PozingEditJobStatus.COMPLETED,
                         LocalDateTime.now(),
+                        maxDeleteAttempts,
                         PageRequest.of(0, 100)
                 )
                 .stream()
@@ -69,6 +74,19 @@ public class PozingEditResultCleanupScheduler {
             }
 
             job.expire();
+        });
+    }
+
+    private void recordCleanupFailure(Long jobId, String errorMessage) {
+        transactionTemplate.executeWithoutResult(status -> {
+            PozingEditJob job = pozingEditJobRepository.findByIdForUpdate(jobId)
+                    .orElse(null);
+
+            if (job == null || job.getStatus() != PozingEditJobStatus.COMPLETED) {
+                return;
+            }
+
+            job.recordCleanupFailure(errorMessage, maxDeleteAttempts);
         });
     }
 
