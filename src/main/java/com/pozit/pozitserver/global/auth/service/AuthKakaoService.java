@@ -1,7 +1,6 @@
 package com.pozit.pozitserver.global.auth.service;
 
 import com.pozit.pozitserver.global.auth.dto.response.LoginTokenResponse;
-import com.pozit.pozitserver.global.auth.jwt.JwtTokenProvider;
 import com.pozit.pozitserver.global.auth.kakao.KakaoClient;
 import com.pozit.pozitserver.user.domain.Role;
 import com.pozit.pozitserver.user.domain.SocialProvider;
@@ -24,16 +23,19 @@ public class AuthKakaoService {
 
     private final KakaoClient kakaoClient;
     private final UserRepository userRepository;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final AuthTokenService authTokenService;
 
     public LoginTokenResponse loginWithKakao(String authorizationCode) {
         KakaoTokenResponse kakaoToken =
                 kakaoClient.requestAccessToken(authorizationCode);
 
-        return loginWithKakaoAccessToken(kakaoToken.accessToken());
+        return loginWithKakaoAccessToken(kakaoToken.accessToken(), "kakao-web");
     }
 
-    public LoginTokenResponse loginWithKakaoAccessToken(String kakaoAccessToken) {
+    public LoginTokenResponse loginWithKakaoAccessToken(
+            String kakaoAccessToken,
+            String deviceId
+    ) {
         KakaoUserResponse kakaoUser =
                 kakaoClient.requestUserInfo(kakaoAccessToken);
 
@@ -57,12 +59,6 @@ public class AuthKakaoService {
                                 .build()
                 ));
 
-        String accessToken=jwtTokenProvider.createAccessToken(user);
-        return LoginTokenResponse.of(
-                accessToken,
-                jwtTokenProvider.getAccessTokenExpirationSeconds(),
-                user,
-                isNewUser
-        );
+        return authTokenService.issueLoginTokens(user, deviceId, isNewUser);
     }
 }

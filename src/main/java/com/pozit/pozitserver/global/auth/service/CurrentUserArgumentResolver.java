@@ -1,14 +1,15 @@
 package com.pozit.pozitserver.global.auth.service;
 
 import com.pozit.pozitserver.global.auth.annotation.CurrentUser;
+import com.pozit.pozitserver.global.auth.jwt.TokenType;
+import com.pozit.pozitserver.global.exception.BusinessException;
+import com.pozit.pozitserver.global.exception.ErrorCode;
 import com.pozit.pozitserver.user.domain.User;
 import com.pozit.pozitserver.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.MethodParameter;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.support.WebDataBinderFactory;
@@ -22,6 +23,7 @@ public class CurrentUserArgumentResolver
         implements HandlerMethodArgumentResolver {
 
     private final UserRepository userRepository;
+    private final AuthTokenService authTokenService;
 
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
@@ -48,17 +50,27 @@ public class CurrentUserArgumentResolver
             if (!required) {
                 return null;
             }
-            throw new BadCredentialsException("인증 정보가 없습니다.");
+            throw new BusinessException(ErrorCode.COMMON401);
         }
 
-        Long userId = Long.valueOf(jwt.getSubject());
+        String tokenType = jwt.getClaimAsString("type");
+        if (!TokenType.ACCESS.name().equals(tokenType)) {
+            throw new BusinessException(ErrorCode.COMMON401);
+        }
+        authTokenService.validateAccessTokenNotBlacklisted(jwt);
+
+        Long userId;
+        try {
+            userId = Long.valueOf(jwt.getSubject());
+        } catch (NumberFormatException exception) {
+            throw new BusinessException(ErrorCode.COMMON401);
+        }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() ->
-                        new UsernameNotFoundException(
-                                "사용자를 찾을 수 없습니다. id=" + userId
-                        )
-                );
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMON401));
+        if (user.isDeleted()) {
+            throw new BusinessException(ErrorCode.COMMON401);
+        }
         return user;
     }
 }

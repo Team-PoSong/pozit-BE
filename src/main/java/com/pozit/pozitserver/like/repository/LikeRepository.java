@@ -16,6 +16,8 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
 
     Optional<Like> findByTravelAndUser(Travel travel, User user);
 
+    void deleteByUser(User user);
+
     long countByTravel(Travel travel);
 
     List<Like> findByUserAndTravelIn(User user, List<Travel> travels);

@@ -16,6 +16,7 @@ public enum ErrorCode {
 
     // Auth
     KAKAO_INVALID_ACCESS_TOKEN(HttpStatus.UNAUTHORIZED, "KAKAO401", "유효하지 않은 카카오 액세스 토큰입니다."),
+    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH401_1", "유효하지 않은 Refresh Token입니다."),
 
     // Travel
     INVALID_TRAVEL_PERIOD(HttpStatus.BAD_REQUEST, "TRAVEL400_1", "종료일은 시작일보다 빠를 수 없습니다."),
@@ -37,6 +38,14 @@ public enum ErrorCode {
     COURSE_SPOT_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_2", "코스 내 해당 여행지를 찾을 수 없습니다."),
     NOT_VALID_TRAVEL_MEMBER(HttpStatus.FORBIDDEN,"COURSE403_1","해당 유저는 이 여행 코스에 접근 권한이 없습니다."),
 
+    // Pozing
+    POZING_VIDEO_NOT_FOUND(HttpStatus.BAD_REQUEST, "POZING400_1", "편집할 포징 영상이 없습니다."),
+    POZING_UPLOAD_SESSION_NOT_FOUND(HttpStatus.BAD_REQUEST, "POZING400_2", "포징 업로드 요청이 만료되었거나 존재하지 않습니다."),
+    POZING_UPLOAD_OBJECT_NOT_FOUND(HttpStatus.BAD_REQUEST, "POZING400_3", "S3에 업로드된 포징 영상을 찾을 수 없습니다."),
+    POZING_EDIT_JOB_ALREADY_EXISTS(HttpStatus.CONFLICT, "POZING409_1", "이미 처리 중인 포징 편집 작업이 있습니다."),
+    POZING_EDIT_JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "POZING404_1", "포징 편집 작업을 찾을 수 없습니다."),
+    POZING_EDIT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "POZING500_1", "포징 영상 편집에 실패했습니다."),
+
     // Like
     ALREADY_LIKED(HttpStatus.BAD_REQUEST, "LIKE400_1", "이미 찜한 여행입니다."),
     CANNOT_LIKE_OWN_TRAVEL(HttpStatus.BAD_REQUEST, "LIKE400_2", "본인이 참여한 여행은 찜할 수 없습니다."),
@@ -46,6 +55,9 @@ public enum ErrorCode {
     INVALID_APPLE_IDENTITY_TOKEN(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_1", "유효하지 않은 Apple identity token입니다."),
     INVALID_APPLE_TOKEN_ISSUE(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_2", "Apple identity token의 issuer가 올바르지 않습니다."),
     NOT_FOUND_APPLE_IDENTITY_TOKEN_SUBJECT(HttpStatus.UNAUTHORIZED, "APPLELOGIN401_3", "Apple identity token에서 회원 고유 식별값을 찾을 수 없습니다."),
+    APPLE_AUTHORIZATION_CODE_REQUIRED(HttpStatus.BAD_REQUEST, "APPLELOGIN400_1", "Apple 회원 탈퇴에는 authorizationCode와 platform이 필요합니다."),
+    APPLE_TOKEN_REVOKE_FAILED(HttpStatus.BAD_GATEWAY, "APPLELOGIN502_1", "Apple 계정 연동 해제에 실패했습니다."),
+    APPLE_CLIENT_SECRET_CONFIG_MISSING(HttpStatus.INTERNAL_SERVER_ERROR, "APPLELOGIN500_1", "Apple client secret 설정이 누락되었습니다."),
 
     //Tour API
     TOUR_API_REQUEST_FAILED(HttpStatus.BAD_GATEWAY,"TOURAPI502_1","관광공사 API 요청에 실패했습니다."),

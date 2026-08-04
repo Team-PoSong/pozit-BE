@@ -23,4 +23,13 @@ public interface CourseSpotRepository extends JpaRepository<CourseSpot, Long> {
             order by c.id asc, cs.orderIndex asc
             """)
     List<CourseSpot> findAllByCourseInOrder(@Param("courses") List<Course> courses);
+
+    @Query("""
+            select cs
+            from CourseSpot cs
+            join fetch cs.course c
+            where c.travel.id = :travelId
+            order by c.dayNumber asc, cs.orderIndex asc, cs.id asc
+            """)
+    List<CourseSpot> findAllByTravelIdForEdit(@Param("travelId") Long travelId);
 }

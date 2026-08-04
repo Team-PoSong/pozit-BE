@@ -15,6 +15,7 @@ import com.pozit.pozitserver.course.repository.CourseSpotRepository;
 import com.pozit.pozitserver.course.repository.TouristSpotRepository;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
+import com.pozit.pozitserver.global.s3.S3Service;
 import com.pozit.pozitserver.global.util.GeoUtils;
 import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
@@ -41,11 +42,14 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class CourseService {
 
+    private static final java.time.Duration POZING_GET_URL_EXPIRATION = java.time.Duration.ofMinutes(10);
+
     private final CourseRepository courseRepository;
     private final CourseSpotRepository courseSpotRepository;
     private final PozingRepository pozingRepository;
     private final TouristSpotRepository touristSpotRepository;
     private final TravelMemberRepository travelMemberRepository;
+    private final S3Service s3Service;
 
     /**
      * 코스 상세 조회 (해당 여행 멤버만 가능)
@@ -119,8 +123,7 @@ public class CourseService {
         List<CourseDetailResponse.PozingInfo> pozingInfos = pozings.stream()
                 .map(p -> new CourseDetailResponse.PozingInfo(
                         p.getId(),
-                        p.getPozingUrl(),
-                        p.getThumbnailUrl(),
+                        s3Service.createGetPresignedUrl(p.getPozingObjectKey(), POZING_GET_URL_EXPIRATION),
                         p.getUser().getNickname()
                 ))
                 .toList();

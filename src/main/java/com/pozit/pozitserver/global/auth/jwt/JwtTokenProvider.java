@@ -1,4 +1,6 @@
 package com.pozit.pozitserver.global.auth.jwt;
+import com.pozit.pozitserver.global.exception.BusinessException;
+import com.pozit.pozitserver.global.exception.ErrorCode;
 import com.pozit.pozitserver.user.domain.User;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.jose.jws.JwsAlgorithms;
@@ -7,6 +9,7 @@ import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.stereotype.Component;
 
@@ -86,14 +89,14 @@ public class JwtTokenProvider {
 
     public Long getMemberId(String token) {
         Jwt jwt = decodeToken(token);
+        return getMemberId(jwt);
+    }
 
+    public Long getMemberId(Jwt jwt) {
         try {
             return Long.parseLong(jwt.getSubject());
         } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException(
-                    "JWT의 회원 ID 형식이 올바르지 않습니다.",
-                    exception
-            );
+            throw new BusinessException(ErrorCode.COMMON401);
         }
     }
 
@@ -104,26 +107,46 @@ public class JwtTokenProvider {
 
     public TokenType getTokenType(String token) {
         Jwt jwt = decodeToken(token);
+        return getTokenType(jwt);
+    }
+
+    public TokenType getTokenType(Jwt jwt) {
         String tokenType = jwt.getClaimAsString(CLAIM_TYPE);
 
         try {
             return TokenType.valueOf(tokenType);
         } catch (IllegalArgumentException | NullPointerException exception) {
-            throw new IllegalArgumentException(
-                    "JWT의 토큰 종류가 올바르지 않습니다.",
-                    exception
-            );
+            throw new BusinessException(ErrorCode.COMMON401);
         }
     }
 
     public void validateRefreshToken(String token) {
-        Jwt jwt = decodeToken(token);
-        String tokenType = jwt.getClaimAsString(CLAIM_TYPE);
+        try {
+            Jwt jwt = decodeToken(token);
+            validateTokenType(jwt, TokenType.REFRESH);
+        } catch (JwtException | BusinessException exception) {
+            throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+    }
 
-        if (!TokenType.REFRESH.name().equals(tokenType)) {
-            throw new IllegalArgumentException(
-                    "Refresh Token이 아닙니다."
-            );
+    public Long getRefreshTokenMemberId(String token) {
+        try {
+            Jwt jwt = decodeToken(token);
+            validateTokenType(jwt, TokenType.REFRESH);
+            return getMemberId(jwt);
+        } catch (JwtException | BusinessException exception) {
+            throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+    }
+
+    public void validateTokenType(
+            Jwt jwt,
+            TokenType expectedTokenType
+    ) {
+        TokenType tokenType = getTokenType(jwt);
+
+        if (tokenType != expectedTokenType) {
+            throw new BusinessException(ErrorCode.COMMON401);
         }
     }
 
