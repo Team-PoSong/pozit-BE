@@ -28,6 +28,7 @@ public enum ErrorCode {
     ALREADY_JOINED_TRAVEL(HttpStatus.BAD_REQUEST, "TRAVEL400_6", "이미 참여한 여행입니다."),
     CANNOT_JOIN_FINISHED_TRAVEL(HttpStatus.BAD_REQUEST, "TRAVEL400_7", "종료된 여행에는 참여할 수 없습니다."),
     INVALID_SEARCH_PERIOD(HttpStatus.BAD_REQUEST, "TRAVEL400_8", "검색 기간이 올바르지 않습니다."),
+    BACKGROUND_IMAGE_UPLOAD_OBJECT_NOT_FOUND(HttpStatus.BAD_REQUEST, "TRAVEL400_9", "S3에 업로드된 배경 사진을 찾을 수 없습니다."),
     TRAVEL_NOT_FOUND(HttpStatus.NOT_FOUND, "TRAVEL404_1", "해당 여행을 찾을 수 없습니다."),
     INVITE_CODE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "TRAVEL500_1", "초대 코드 생성에 실패했습니다."),
 

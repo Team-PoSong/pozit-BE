@@ -57,6 +57,7 @@ public class TravelService {
     private static final int SEARCH_LIMIT = 10;
     private static final String INVITE_CODE_UNIQUE_CONSTRAINT_NAME = "uk_travel_invite_code";
     private static final Duration BACKGROUND_IMAGE_PRESIGNED_URL_EXPIRATION = Duration.ofMinutes(10);
+    private static final Duration BACKGROUND_IMAGE_GET_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final Duration POZING_GET_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final String BACKGROUND_IMAGE_CONTENT_TYPE = "image/jpeg";
 
@@ -322,6 +323,14 @@ public class TravelService {
                 .orElse(null);
     }
 
+    private String createBackgroundImageUrl(Travel travel) {
+        String objectKey = travel.getBackgroundImageUrl();
+        if (objectKey == null) {
+            return null;
+        }
+        return s3Service.createGetPresignedUrl(objectKey, BACKGROUND_IMAGE_GET_URL_EXPIRATION);
+    }
+
     private TravelListResponse toTravelListResponse(
             Travel travel,
             List<TravelMember> members,
@@ -341,7 +350,7 @@ public class TravelService {
                 travel.getEndDate(),
                 travel.getStatus().name(),
                 travel.getIsPublic(),
-                travel.getBackgroundImageUrl(),
+                createBackgroundImageUrl(travel),
                 completionRate,
                 tags,
                 leaderNickname,
@@ -370,7 +379,7 @@ public class TravelService {
                 travel.getEndDate(),
                 travel.getStatus().name(),
                 travel.getIsPublic(),
-                travel.getBackgroundImageUrl(),
+                createBackgroundImageUrl(travel),
                 completionRate,
                 tags,
                 leaderNickname,
@@ -467,7 +476,7 @@ public class TravelService {
                 travel.getEndDate(),
                 travel.getStatus().name(),
                 travel.getIsPublic(),
-                travel.getBackgroundImageUrl(),
+                createBackgroundImageUrl(travel),
                 aggregate.leaderNickname(),
                 aggregate.members().size(),
                 aggregate.completionRate(),
@@ -543,7 +552,7 @@ public class TravelService {
                 travel.getEndDate(),
                 travel.getStatus().name(),
                 travel.getIsPublic(),
-                travel.getBackgroundImageUrl(),
+                createBackgroundImageUrl(travel),
                 travel.getInviteCode(),
                 aggregate.completionRate(),
                 aggregate.totalSpotCount(),
@@ -759,11 +768,16 @@ public class TravelService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
 
         validateMember(travel, user);
+
+        if (!s3Service.exists(request.backGroundImgUrl())) {
+            throw new BusinessException(ErrorCode.BACKGROUND_IMAGE_UPLOAD_OBJECT_NOT_FOUND);
+        }
+
         travel.updateBackgroundImage(request.backGroundImgUrl());
 
         return new BackgroundImgSaveResponse(
                 travel.getId(),
-                travel.getBackgroundImageUrl()
+                createBackgroundImageUrl(travel)
         );
     }
 
