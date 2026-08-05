@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
 
@@ -18,6 +19,7 @@ public class TourApiClient {
 
     private final WebClient tourApiWebClient;
     private final TourApiProperties properties;
+    private final ObjectMapper objectMapper;
 
     public TourApiResponse searchPlaces(
             String keyword,
@@ -43,8 +45,22 @@ public class TourApiClient {
                                 .flatMap(body-> Mono.error(
                                         new BusinessException(ErrorCode.TOUR_API_REQUEST_FAILED)
                                 )))
-                .bodyToMono(TourApiResponse.class)
+                .bodyToMono(String.class)
+                .map(this::deserializeTourApiResponse)
                 .timeout(Duration.ofSeconds(5))
                 .block();
+    }
+
+    private TourApiResponse deserializeTourApiResponse(String body) {
+        if (body == null || body.isBlank()) {
+            throw new BusinessException(ErrorCode.TOUR_API_REQUEST_FAILED);
+        }
+
+        try {
+            String normalizedBody = body.replaceAll("\"items\"\\s*:\\s*\"\"", "\"items\":null");
+            return objectMapper.readValue(normalizedBody, TourApiResponse.class);
+        } catch (Exception exception) {
+            throw new BusinessException(ErrorCode.TOUR_API_REQUEST_FAILED);
+        }
     }
 }

@@ -45,7 +45,7 @@ public class PozingEditWorker {
                     GROUP_NAME
             );
         } catch (RedisSystemException | InvalidDataAccessApiUsageException e) {
-            if (!Objects.toString(e.getMessage(), "").contains("BUSYGROUP")) {
+            if (!containsRedisError(e, "BUSYGROUP")) {
                 throw e;
             }
         }
@@ -94,7 +94,7 @@ public class PozingEditWorker {
                     StreamOffset.create(PozingEditQueuePublisher.STREAM_KEY, ReadOffset.lastConsumed())
             );
         } catch (RedisSystemException e) {
-            if (Objects.toString(e.getMessage(), "").contains("NOGROUP")) {
+            if (containsRedisError(e, "NOGROUP")) {
                 initializeConsumerGroup();
                 return List.of();
             }
@@ -119,5 +119,16 @@ public class PozingEditWorker {
             log.error("Invalid jobId in pozing edit record. recordId={}", record.getId(), e);
             return null;
         }
+    }
+
+    private boolean containsRedisError(Throwable throwable, String errorCode) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (Objects.toString(current.getMessage(), "").contains(errorCode)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }
