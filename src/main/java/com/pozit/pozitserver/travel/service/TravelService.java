@@ -768,6 +768,11 @@ public class TravelService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
 
         validateMember(travel, user);
+
+        if (!s3Service.exists(request.backGroundImgUrl())) {
+            throw new BusinessException(ErrorCode.BACKGROUND_IMAGE_UPLOAD_OBJECT_NOT_FOUND);
+        }
+
         travel.updateBackgroundImage(request.backGroundImgUrl());
 
         return new BackgroundImgSaveResponse(
