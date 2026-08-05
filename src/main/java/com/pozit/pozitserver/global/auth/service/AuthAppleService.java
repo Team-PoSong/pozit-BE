@@ -24,32 +24,52 @@ public class AuthAppleService {
     private final AppleClient appleClient;
     private final UserRepository userRepository;
     private final AuthTokenService authTokenService;
+    private final AuthNicknameService authNicknameService;
 
     public LoginTokenResponse loginWithApple(AppleIdentityTokenRequest request) {
         AppleTokenClaims claims = appleClient.loginWithAppleIdentityToken(request);
         String nickname = resolveNickname(request, claims);
 
+        String socialId = claims.socialId();
+
         Optional<User> optionalUser = userRepository.findByProviderAndSocialId(
                 SocialProvider.APPLE,
-                claims.socialId()
+                socialId
         );
 
-        boolean isNewUser = optionalUser.isEmpty();
-        User user = optionalUser
-                .map(existingUser -> {
-                    existingUser.updateProfile(nickname);
-                    return existingUser;
-                })
-                .orElseGet(() -> userRepository.save(
-                        User.builder()
-                                .provider(SocialProvider.APPLE)
-                                .socialId(claims.socialId())
-                                .nickname(nickname)
-                                .role(Role.USER)
-                                .build()
-                ));
+        boolean isNewUser = false;
+        User user;
+
+        if (optionalUser.isPresent()) {
+            user = optionalUser.get();
+            user.updateProfile(authNicknameService.resolveAvailableNickname(
+                    nickname,
+                    user.getId(),
+                    SocialProvider.APPLE,
+                    socialId
+            ));
+        } else {
+            isNewUser = true;
+            user = createUser(socialId, nickname);
+        }
 
         return authTokenService.issueLoginTokens(user, request.deviceId(), isNewUser);
+    }
+
+    private User createUser(String socialId, String nickname) {
+        return userRepository.save(
+                User.builder()
+                        .provider(SocialProvider.APPLE)
+                        .socialId(socialId)
+                        .nickname(authNicknameService.resolveAvailableNickname(
+                                nickname,
+                                null,
+                                SocialProvider.APPLE,
+                                socialId
+                        ))
+                        .role(Role.USER)
+                        .build()
+        );
     }
 
     private String resolveNickname(

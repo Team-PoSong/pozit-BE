@@ -23,4 +23,5 @@ public interface RegionRepository extends JpaRepository<Region,Long> {
             Pageable pageable
     );
 
+    boolean existsByCode(String code);
 }

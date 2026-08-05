@@ -15,4 +15,6 @@ public interface TravelRepository extends JpaRepository<Travel, Long>, TravelRep
     boolean existsByInviteCode(String inviteCode);
 
     List<Travel> findByLeaderAndStatusNot(User leader, TravelStatus status);
+
+    List<Travel> findByLeader(User leader);
 }
