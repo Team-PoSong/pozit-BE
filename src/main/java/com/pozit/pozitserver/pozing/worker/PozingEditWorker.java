@@ -45,7 +45,7 @@ public class PozingEditWorker {
                     GROUP_NAME
             );
         } catch (RedisSystemException | InvalidDataAccessApiUsageException e) {
-            if (!Objects.toString(e.getMessage(), "").contains("BUSYGROUP")) {
+            if (!Objects.toString(e.getMostSpecificCause().getMessage(), "").contains("BUSYGROUP")) {
                 throw e;
             }
         }
@@ -94,7 +94,7 @@ public class PozingEditWorker {
                     StreamOffset.create(PozingEditQueuePublisher.STREAM_KEY, ReadOffset.lastConsumed())
             );
         } catch (RedisSystemException e) {
-            if (Objects.toString(e.getMessage(), "").contains("NOGROUP")) {
+            if (Objects.toString(e.getMostSpecificCause().getMessage(), "").contains("NOGROUP")) {
                 initializeConsumerGroup();
                 return List.of();
             }
