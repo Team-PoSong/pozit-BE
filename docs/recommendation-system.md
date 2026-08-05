@@ -140,12 +140,14 @@ areaBasedList2
 - 키워드에 의존하지 않는 안정적인 장소 수집
 - `regionCode`를 법정동 코드 파라미터로 변환해 조회
 
-현재 지역 코드 변환:
+현재 지역 코드 처리:
 
 ```text
-regionCode 앞 2자리 → lDongRegnCd
-regionCode가 시군구 코드이면 → lDongSignguCd
-regionCode가 000으로 끝나면 광역 단위로 판단
+1. RegionRepository.existsByCode()로 POZIT 내부 regionCode 존재 여부 검증
+2. regionCode 앞 2자리 → lDongRegnCd
+3. regionCode가 시군구 코드이면 → lDongSignguCd
+4. 광역 법정동 코드 → 관광정보 API areaCode fallback 매핑
+5. API 응답도 법정동 코드 우선, 없으면 areaCode로 보조 검증
 ```
 
 예:
@@ -262,7 +264,7 @@ detailInfo2
 - 장소별 반복 부가정보 보강
 - 전시/행사/코스/부대시설 등의 설명 키워드 보강
 
-현재는 첫 번째 반복정보를 장소의 `repeatedInfo`로 병합해 콘텐츠 벡터 생성에 사용한다.
+현재는 `detailInfo2`의 여러 반복정보를 모두 읽고, `infoname + infotext`를 중복 제거 후 하나의 `repeatedInfo`로 병합해 콘텐츠 벡터 생성에 사용한다.
 
 ## 5. 후보 필터링
 
@@ -413,13 +415,17 @@ RegionTrendScore = 0.5
 DiversityRerankingService
 ```
 
-같은 `contentTypeId`가 반복될수록 감점한다.
+같은 `contentTypeId`, `cat2`, `cat3`가 반복될수록 감점한다.
 
 ```text
-ReRankScore = FinalPlaceScore - sameContentTypeCount * 0.10
+ReRankScore
+= FinalPlaceScore
+- sameContentTypeCount * 0.10
+- sameCat2Count * 0.08
+- sameCat3Count * 0.05
 ```
 
-아직 `cat2`, `cat3`, 장소 벡터 유사도 기반 패널티는 적용하지 않았다.
+아직 장소 벡터 유사도 기반 패널티는 적용하지 않았다.
 
 ## 11. 날짜별 코스 생성
 
@@ -501,14 +507,13 @@ StayTimePolicy
 
 ## 13. 다음 개선 과제
 
-- `areaCode`, `sigunguCode`, 법정동 코드 매핑 정확도 검증
-- `detailInfo2`의 여러 반복정보를 모두 병합하도록 개선
-- `cat2`, `cat3` 기반 다양성 패널티 추가
 - 관광지 집중률 API 연동
 - 지역별 방문자수 API 연동
 - 두루누비 API 연동
 - 지도 길찾기 API 기반 실제 이동시간 반영
 - 추천 결과 확정 저장 API 추가
+- 관광정보 API `sigunguCode` 정밀 매핑 테이블 추가
+- 장소 벡터 유사도 기반 다양성 패널티 추가
 
 ## 14. 검증 결과
 

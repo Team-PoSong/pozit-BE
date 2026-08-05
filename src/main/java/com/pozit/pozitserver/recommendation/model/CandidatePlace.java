@@ -2,6 +2,9 @@ package com.pozit.pozitserver.recommendation.model;
 
 import com.pozit.pozitserver.course.dto.response.coursespot.TourApiResponse;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 public record CandidatePlace(
         String contentId,
         String contentTypeId,
@@ -11,6 +14,8 @@ public record CandidatePlace(
         String mapX,
         String mapY,
         String tel,
+        String areaCode,
+        String sigunguCode,
         String legalDongRegionCode,
         String legalDongSigunguCode,
         String cat1,
@@ -43,6 +48,8 @@ public record CandidatePlace(
                 trimToNull(item.mapx()),
                 trimToNull(item.mapy()),
                 trimToNull(item.tel()),
+                trimToNull(item.areacode()),
+                trimToNull(item.sigungucode()),
                 trimToNull(item.legalDongRegionCode()),
                 trimToNull(item.legalDongSigunguCode()),
                 trimToNull(item.cat1()),
@@ -76,6 +83,8 @@ public record CandidatePlace(
                 firstNotBlank(other.mapX, mapX),
                 firstNotBlank(other.mapY, mapY),
                 firstNotBlank(other.tel, tel),
+                firstNotBlank(other.areaCode, areaCode),
+                firstNotBlank(other.sigunguCode, sigunguCode),
                 firstNotBlank(other.legalDongRegionCode, legalDongRegionCode),
                 firstNotBlank(other.legalDongSigunguCode, legalDongSigunguCode),
                 firstNotBlank(other.cat1, cat1),
@@ -96,6 +105,51 @@ public record CandidatePlace(
                 firstNotBlank(other.firstMenu, firstMenu),
                 firstNotBlank(other.treatMenu, treatMenu),
                 firstNotBlank(other.repeatedInfo, repeatedInfo)
+        );
+    }
+
+    public CandidatePlace mergeRepeatedInfos(List<CandidatePlace> repeatedInfoPlaces) {
+        String mergedRepeatedInfo = repeatedInfoPlaces.stream()
+                .map(CandidatePlace::repeatedInfo)
+                .filter(value -> value != null && !value.isBlank())
+                .distinct()
+                .collect(Collectors.joining(" "));
+
+        if (mergedRepeatedInfo.isBlank()) {
+            return this;
+        }
+
+        return new CandidatePlace(
+                contentId,
+                contentTypeId,
+                title,
+                address,
+                imageUrl,
+                mapX,
+                mapY,
+                tel,
+                areaCode,
+                sigunguCode,
+                legalDongRegionCode,
+                legalDongSigunguCode,
+                cat1,
+                cat2,
+                cat3,
+                overview,
+                homepage,
+                restDate,
+                useTime,
+                parking,
+                experienceGuide,
+                eventStartDate,
+                eventEndDate,
+                playTime,
+                foodOpenTime,
+                foodRestDate,
+                foodParking,
+                firstMenu,
+                treatMenu,
+                appendDistinct(repeatedInfo, mergedRepeatedInfo)
         );
     }
 
@@ -179,6 +233,19 @@ public record CandidatePlace(
 
     private static String nullToEmpty(String value) {
         return value == null ? "" : value;
+    }
+
+    private static String appendDistinct(String current, String addition) {
+        String normalizedCurrent = trimToNull(current);
+        String normalizedAddition = trimToNull(addition);
+
+        if (normalizedCurrent == null) {
+            return normalizedAddition;
+        }
+        if (normalizedAddition == null || normalizedCurrent.contains(normalizedAddition)) {
+            return normalizedCurrent;
+        }
+        return normalizedCurrent + " " + normalizedAddition;
     }
 
     private static String trimToNull(String value) {

@@ -34,11 +34,19 @@ public class TourApiClient {
     public TourApiResponse findAreaBasedPlaces(
             String legalDongRegionCode,
             String legalDongSigunguCode,
+            String areaCode,
+            String sigunguCode,
             String contentTypeId,
             int page,
             int size
     ) {
         return get("/areaBasedList2", page, size, uriBuilder -> {
+            if (areaCode != null && !areaCode.isBlank()) {
+                uriBuilder.queryParam("areaCode", areaCode);
+            }
+            if (sigunguCode != null && !sigunguCode.isBlank()) {
+                uriBuilder.queryParam("sigunguCode", sigunguCode);
+            }
             if (legalDongRegionCode != null && !legalDongRegionCode.isBlank()) {
                 uriBuilder.queryParam("lDongRegnCd", legalDongRegionCode);
             }

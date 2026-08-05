@@ -7,6 +7,7 @@ import com.pozit.pozitserver.global.tourapi.webClient.TourApiClient;
 import com.pozit.pozitserver.recommendation.model.CandidatePlace;
 import com.pozit.pozitserver.recommendation.model.CourseRecommendCommand;
 import com.pozit.pozitserver.recommendation.model.RecommendationTag;
+import com.pozit.pozitserver.recommendation.model.TourApiRegionCodes;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -27,16 +28,63 @@ public class TourApiCandidateProvider {
     private static final int MAX_ENRICH_TARGETS = 40;
 
     private final TourApiClient tourApiClient;
+    private final TourApiRegionCodeResolver regionCodeResolver;
 
     public List<CandidatePlace> findCandidates(CourseRecommendCommand command) {
-        Map<String, CandidatePlace> candidatesByContentId = new LinkedHashMap<>();
-        String legalDongRegionCode = toLegalDongRegionCode(command.regionCode());
-        String legalDongSigunguCode = toLegalDongSigunguCode(command.regionCode());
+        TourApiRegionCodes regionCodes = regionCodeResolver.resolve(command.regionCode());
+        List<Map<String, CandidatePlace>> candidateBuckets = new ArrayList<>();
 
-        for (String contentTypeId : buildPriorityContentTypeIds(command.tags())) {
+        Map<String, CandidatePlace> destinationCandidates = collectKeywordCandidates(command.destination(), regionCodes);
+        if (!destinationCandidates.isEmpty()) {
+            candidateBuckets.add(destinationCandidates);
+        }
+
+        for (RecommendationTag tag : command.tags()) {
+            Map<String, CandidatePlace> tagCandidates = collectTagCandidates(tag, command, regionCodes);
+            if (!tagCandidates.isEmpty()) {
+                candidateBuckets.add(tagCandidates);
+            }
+        }
+
+        if (candidateBuckets.isEmpty()) {
+            Map<String, CandidatePlace> fallbackCandidates = collectContentTypeCandidates(
+                    List.of("12", "14", "39"),
+                    regionCodes
+            );
+            if (!fallbackCandidates.isEmpty()) {
+                candidateBuckets.add(fallbackCandidates);
+            }
+        }
+
+        return selectBalancedCandidates(candidateBuckets, MAX_ENRICH_TARGETS).stream()
+                .map(this::enrich)
+                .filter(place -> !isFinishedEvent(place, command))
+                .toList();
+    }
+
+    private Map<String, CandidatePlace> collectTagCandidates(
+            RecommendationTag tag,
+            CourseRecommendCommand command,
+            TourApiRegionCodes regionCodes
+    ) {
+        Map<String, CandidatePlace> candidatesByContentId = new LinkedHashMap<>();
+        candidatesByContentId.putAll(collectContentTypeCandidates(buildContentTypeIds(tag), regionCodes));
+        candidatesByContentId.putAll(collectKeywordCandidates(buildKeyword(command.destination(), tag), regionCodes));
+        return candidatesByContentId;
+    }
+
+    private Map<String, CandidatePlace> collectContentTypeCandidates(
+            List<String> contentTypeIds,
+            TourApiRegionCodes regionCodes
+    ) {
+        Map<String, CandidatePlace> candidatesByContentId = new LinkedHashMap<>();
+
+        for (String contentTypeId : contentTypeIds) {
             TourApiResponse response = tourApiClient.findAreaBasedPlaces(
-                    legalDongRegionCode,
-                    legalDongSigunguCode,
+                    regionCodes.legalDongRegionCode(),
+                    regionCodes.legalDongSigunguCode(),
+                    regionCodes.areaCode(),
+                    regionCodes.sigunguCode(),
                     contentTypeId,
                     PAGE,
                     SIZE_PER_QUERY
@@ -46,74 +94,101 @@ public class TourApiCandidateProvider {
             extractItems(response).stream()
                     .map(CandidatePlace::from)
                     .filter(this::isUsable)
-                    .filter(place -> isInRegion(place, command.regionCode()))
+                    .filter(place -> regionCodeResolver.matches(place, regionCodes))
                     .forEach(place -> candidatesByContentId.putIfAbsent(place.contentId(), place));
         }
 
-        for (String keyword : buildKeywords(command)) {
-            TourApiResponse response = tourApiClient.searchPlaces(keyword, PAGE, SIZE_PER_QUERY);
-            validateResponse(response);
-
-            extractItems(response).stream()
-                    .map(CandidatePlace::from)
-                    .filter(this::isUsable)
-                    .filter(place -> isInRegion(place, command.regionCode()))
-                    .forEach(place -> candidatesByContentId.putIfAbsent(place.contentId(), place));
-        }
-
-        return new ArrayList<>(candidatesByContentId.values()).stream()
-                .limit(MAX_ENRICH_TARGETS)
-                .map(this::enrich)
-                .filter(place -> !isFinishedEvent(place, command))
-                .toList();
+        return candidatesByContentId;
     }
 
-    private List<String> buildPriorityContentTypeIds(List<RecommendationTag> tags) {
-        List<String> contentTypeIds = new ArrayList<>();
+    private Map<String, CandidatePlace> collectKeywordCandidates(
+            String keyword,
+            TourApiRegionCodes regionCodes
+    ) {
+        Map<String, CandidatePlace> candidatesByContentId = new LinkedHashMap<>();
 
-        for (RecommendationTag tag : tags) {
-            switch (tag) {
-                case RECORD -> {
-                    contentTypeIds.add("12");
-                    contentTypeIds.add("14");
+        if (keyword == null || keyword.isBlank()) {
+            return candidatesByContentId;
+        }
+
+        TourApiResponse response = tourApiClient.searchPlaces(keyword, PAGE, SIZE_PER_QUERY);
+        validateResponse(response);
+
+        extractItems(response).stream()
+                .map(CandidatePlace::from)
+                .filter(this::isUsable)
+                .filter(place -> regionCodeResolver.matches(place, regionCodes))
+                .forEach(place -> candidatesByContentId.putIfAbsent(place.contentId(), place));
+
+        return candidatesByContentId;
+    }
+
+    private List<CandidatePlace> selectBalancedCandidates(
+            List<Map<String, CandidatePlace>> candidateBuckets,
+            int maxCount
+    ) {
+        Map<String, CandidatePlace> selectedCandidates = new LinkedHashMap<>();
+        List<List<CandidatePlace>> buckets = candidateBuckets.stream()
+                .<List<CandidatePlace>>map(bucket -> new ArrayList<>(bucket.values()))
+                .toList();
+        int index = 0;
+        boolean hasCandidateAtIndex;
+
+        do {
+            hasCandidateAtIndex = false;
+
+            for (List<CandidatePlace> bucket : buckets) {
+                if (index >= bucket.size()) {
+                    continue;
                 }
-                case FOOD -> {
-                    contentTypeIds.add("39");
-                    contentTypeIds.add("38");
+
+                hasCandidateAtIndex = true;
+                CandidatePlace candidate = bucket.get(index);
+                if (!selectedCandidates.containsKey(candidate.contentId())) {
+                    selectedCandidates.put(candidate.contentId(), candidate);
                 }
-                case HEALING -> contentTypeIds.add("12");
-                case EXPERIENCE -> {
-                    contentTypeIds.add("15");
-                    contentTypeIds.add("28");
-                    contentTypeIds.add("12");
-                }
-                case CULTURE, ART -> {
-                    contentTypeIds.add("14");
-                    contentTypeIds.add("12");
-                    contentTypeIds.add("15");
-                }
-                case SHOPPING -> contentTypeIds.add("38");
-                case EXPLORATION -> {
-                    contentTypeIds.add("12");
-                    contentTypeIds.add("28");
+
+                if (selectedCandidates.size() >= maxCount) {
+                    return new ArrayList<>(selectedCandidates.values());
                 }
             }
-        }
 
-        if (contentTypeIds.isEmpty()) {
-            contentTypeIds.addAll(List.of("12", "14", "39"));
-        }
+            index++;
+        } while (hasCandidateAtIndex);
 
-        return contentTypeIds.stream()
-                .distinct()
-                .toList();
+        return new ArrayList<>(selectedCandidates.values());
+    }
+
+    private List<String> buildContentTypeIds(RecommendationTag tag) {
+        return switch (tag) {
+            case RECORD -> List.of("12", "14");
+            case FOOD -> List.of("39", "38");
+            case HEALING -> List.of("12");
+            case EXPERIENCE -> List.of("15", "28", "12");
+            case CULTURE, ART -> List.of("14", "12", "15");
+            case SHOPPING -> List.of("38");
+            case EXPLORATION -> List.of("12", "28");
+        };
+    }
+
+    private String buildKeyword(String destination, RecommendationTag tag) {
+        return switch (tag) {
+            case RECORD -> destination + " 관광지";
+            case FOOD -> destination + " 맛집";
+            case HEALING -> destination + " 공원";
+            case EXPERIENCE -> destination + " 체험";
+            case CULTURE -> destination + " 문화";
+            case ART -> destination + " 미술관";
+            case SHOPPING -> destination + " 시장";
+            case EXPLORATION -> destination + " 트레킹";
+        };
     }
 
     private CandidatePlace enrich(CandidatePlace place) {
         CandidatePlace enriched = place;
         enriched = mergeFirstItem(enriched, () -> tourApiClient.getDetailCommon(place.contentId(), place.contentTypeId()));
         enriched = mergeFirstItem(enriched, () -> tourApiClient.getDetailIntro(place.contentId(), place.contentTypeId()));
-        enriched = mergeFirstItem(enriched, () -> tourApiClient.getDetailInfo(place.contentId(), place.contentTypeId()));
+        enriched = mergeRepeatedInfoItems(enriched, () -> tourApiClient.getDetailInfo(place.contentId(), place.contentTypeId()));
         return enriched;
     }
 
@@ -128,6 +203,20 @@ public class TourApiCandidateProvider {
                     .orElse(base);
         } catch (RuntimeException exception) {
             log.debug("Tour API detail enrichment failed. contentId={}", base.contentId(), exception);
+            return base;
+        }
+    }
+
+    private CandidatePlace mergeRepeatedInfoItems(CandidatePlace base, java.util.function.Supplier<TourApiResponse> supplier) {
+        try {
+            TourApiResponse response = supplier.get();
+            validateResponse(response);
+            List<CandidatePlace> repeatedInfoPlaces = extractItems(response).stream()
+                    .map(CandidatePlace::from)
+                    .toList();
+            return base.mergeRepeatedInfos(repeatedInfoPlaces);
+        } catch (RuntimeException exception) {
+            log.debug("Tour API repeated info enrichment failed. contentId={}", base.contentId(), exception);
             return base;
         }
     }
@@ -148,29 +237,6 @@ public class TourApiCandidateProvider {
         }
     }
 
-    private List<String> buildKeywords(CourseRecommendCommand command) {
-        List<String> keywords = new ArrayList<>();
-        keywords.add(command.destination());
-
-        for (RecommendationTag tag : command.tags()) {
-            switch (tag) {
-                case RECORD -> keywords.add(command.destination() + " 관광지");
-                case FOOD -> keywords.add(command.destination() + " 맛집");
-                case HEALING -> keywords.add(command.destination() + " 공원");
-                case EXPERIENCE -> keywords.add(command.destination() + " 체험");
-                case CULTURE -> keywords.add(command.destination() + " 문화");
-                case ART -> keywords.add(command.destination() + " 미술관");
-                case SHOPPING -> keywords.add(command.destination() + " 시장");
-                case EXPLORATION -> keywords.add(command.destination() + " 트레킹");
-            }
-        }
-
-        return keywords.stream()
-                .filter(keyword -> keyword != null && !keyword.isBlank())
-                .distinct()
-                .toList();
-    }
-
     private List<TourApiResponse.Response.Item> extractItems(TourApiResponse response) {
         TourApiResponse.Response.Body body = response.response().body();
         if (body == null || body.items() == null || body.items().item() == null) {
@@ -183,39 +249,6 @@ public class TourApiCandidateProvider {
         return place.contentId() != null
                 && place.title() != null
                 && place.hasCoordinate();
-    }
-
-    private boolean isInRegion(CandidatePlace place, String regionCode) {
-        if (regionCode == null || regionCode.isBlank()) {
-            return true;
-        }
-
-        String legalDongRegionCode = toLegalDongRegionCode(regionCode);
-        String legalDongSigunguCode = toLegalDongSigunguCode(regionCode);
-
-        if (!legalDongSigunguCode.isBlank()) {
-            return legalDongSigunguCode.equals(place.legalDongSigunguCode());
-        }
-
-        if (!legalDongRegionCode.isBlank()) {
-            return legalDongRegionCode.equals(place.legalDongRegionCode());
-        }
-
-        return true;
-    }
-
-    private String toLegalDongRegionCode(String regionCode) {
-        if (regionCode.length() < 2) {
-            return "";
-        }
-        return regionCode.substring(0, 2);
-    }
-
-    private String toLegalDongSigunguCode(String regionCode) {
-        if (regionCode.length() < 5 || regionCode.endsWith("000")) {
-            return "";
-        }
-        return regionCode;
     }
 
     private void validateResponse(TourApiResponse result) {

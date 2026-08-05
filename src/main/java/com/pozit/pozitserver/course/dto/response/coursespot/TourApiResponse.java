@@ -44,6 +44,8 @@ public record TourApiResponse (
                 String mapx,
                 String mapy,
                 String tel,
+                String areacode,
+                String sigungucode,
                 String cat1,
                 String cat2,
                 String cat3,
