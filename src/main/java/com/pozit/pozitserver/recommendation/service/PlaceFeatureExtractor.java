@@ -14,13 +14,45 @@ public class PlaceFeatureExtractor {
         double[] vector = new double[RecommendationTag.VECTOR_SIZE];
 
         applyContentTypeScore(vector, place.contentTypeId());
-        applyKeywordScore(vector, place.title());
+        applyCategoryScore(vector, place);
+        applyKeywordScore(vector, place.searchableText());
 
         for (int i = 0; i < vector.length; i++) {
             vector[i] = Math.min(1.0, vector[i]);
         }
 
         return new PlaceFeatureVector(vector);
+    }
+
+    private void applyCategoryScore(double[] vector, CandidatePlace place) {
+        String categoryText = String.join(" ",
+                place.cat1() == null ? "" : place.cat1(),
+                place.cat2() == null ? "" : place.cat2(),
+                place.cat3() == null ? "" : place.cat3()
+        ).toLowerCase(Locale.KOREAN);
+
+        if (categoryText.isBlank()) {
+            return;
+        }
+
+        if (containsAny(categoryText, "a01", "자연", "생태", "공원")) {
+            add(vector, RecommendationTag.HEALING, 0.2);
+            add(vector, RecommendationTag.EXPLORATION, 0.1);
+        }
+        if (containsAny(categoryText, "a02", "역사", "문화")) {
+            add(vector, RecommendationTag.CULTURE, 0.2);
+            add(vector, RecommendationTag.RECORD, 0.1);
+        }
+        if (containsAny(categoryText, "a03", "레포츠")) {
+            add(vector, RecommendationTag.EXPERIENCE, 0.2);
+            add(vector, RecommendationTag.EXPLORATION, 0.2);
+        }
+        if (containsAny(categoryText, "a04", "쇼핑")) {
+            add(vector, RecommendationTag.SHOPPING, 0.2);
+        }
+        if (containsAny(categoryText, "a05", "음식")) {
+            add(vector, RecommendationTag.FOOD, 0.2);
+        }
     }
 
     private void applyContentTypeScore(double[] vector, String contentTypeId) {
@@ -64,12 +96,12 @@ public class PlaceFeatureExtractor {
         }
     }
 
-    private void applyKeywordScore(double[] vector, String title) {
-        if (title == null) {
+    private void applyKeywordScore(double[] vector, String text) {
+        if (text == null) {
             return;
         }
 
-        String normalizedTitle = title.toLowerCase(Locale.KOREAN);
+        String normalizedTitle = text.toLowerCase(Locale.KOREAN);
 
         if (containsAny(normalizedTitle, "미술관", "갤러리", "전시", "공연", "극장")) {
             add(vector, RecommendationTag.ART, 0.2);
@@ -85,6 +117,9 @@ public class PlaceFeatureExtractor {
         }
         if (containsAny(normalizedTitle, "체험", "공방", "만들기", "레포츠")) {
             add(vector, RecommendationTag.EXPERIENCE, 0.2);
+        }
+        if (containsAny(normalizedTitle, "대표메뉴", "메뉴", "한식", "분식", "디저트", "커피")) {
+            add(vector, RecommendationTag.FOOD, 0.2);
         }
         if (containsAny(normalizedTitle, "궁", "유적", "역사", "박물관", "문화")) {
             add(vector, RecommendationTag.CULTURE, 0.2);

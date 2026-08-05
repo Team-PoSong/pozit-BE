@@ -27,6 +27,9 @@ public class TransportationScoreCalculator {
     }
 
     private double carScore(CandidatePlace place) {
+        if (place.hasParkingInfo()) {
+            return 0.85;
+        }
         if (place.contentTypeId() != null && place.contentTypeId().equals("39")) {
             return 0.6;
         }

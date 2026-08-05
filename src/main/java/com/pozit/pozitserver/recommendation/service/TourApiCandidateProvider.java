@@ -23,12 +23,32 @@ public class TourApiCandidateProvider {
 
     private static final String SUCCESS_CODE = "0000";
     private static final int PAGE = 1;
-    private static final int SIZE_PER_QUERY = 15;
+    private static final int SIZE_PER_QUERY = 20;
+    private static final int MAX_ENRICH_TARGETS = 40;
 
     private final TourApiClient tourApiClient;
 
     public List<CandidatePlace> findCandidates(CourseRecommendCommand command) {
         Map<String, CandidatePlace> candidatesByContentId = new LinkedHashMap<>();
+        String legalDongRegionCode = toLegalDongRegionCode(command.regionCode());
+        String legalDongSigunguCode = toLegalDongSigunguCode(command.regionCode());
+
+        for (String contentTypeId : buildPriorityContentTypeIds(command.tags())) {
+            TourApiResponse response = tourApiClient.findAreaBasedPlaces(
+                    legalDongRegionCode,
+                    legalDongSigunguCode,
+                    contentTypeId,
+                    PAGE,
+                    SIZE_PER_QUERY
+            );
+            validateResponse(response);
+
+            extractItems(response).stream()
+                    .map(CandidatePlace::from)
+                    .filter(this::isUsable)
+                    .filter(place -> isInRegion(place, command.regionCode()))
+                    .forEach(place -> candidatesByContentId.putIfAbsent(place.contentId(), place));
+        }
 
         for (String keyword : buildKeywords(command)) {
             TourApiResponse response = tourApiClient.searchPlaces(keyword, PAGE, SIZE_PER_QUERY);
@@ -41,7 +61,91 @@ public class TourApiCandidateProvider {
                     .forEach(place -> candidatesByContentId.putIfAbsent(place.contentId(), place));
         }
 
-        return new ArrayList<>(candidatesByContentId.values());
+        return new ArrayList<>(candidatesByContentId.values()).stream()
+                .limit(MAX_ENRICH_TARGETS)
+                .map(this::enrich)
+                .filter(place -> !isFinishedEvent(place, command))
+                .toList();
+    }
+
+    private List<String> buildPriorityContentTypeIds(List<RecommendationTag> tags) {
+        List<String> contentTypeIds = new ArrayList<>();
+
+        for (RecommendationTag tag : tags) {
+            switch (tag) {
+                case RECORD -> {
+                    contentTypeIds.add("12");
+                    contentTypeIds.add("14");
+                }
+                case FOOD -> {
+                    contentTypeIds.add("39");
+                    contentTypeIds.add("38");
+                }
+                case HEALING -> contentTypeIds.add("12");
+                case EXPERIENCE -> {
+                    contentTypeIds.add("15");
+                    contentTypeIds.add("28");
+                    contentTypeIds.add("12");
+                }
+                case CULTURE, ART -> {
+                    contentTypeIds.add("14");
+                    contentTypeIds.add("12");
+                    contentTypeIds.add("15");
+                }
+                case SHOPPING -> contentTypeIds.add("38");
+                case EXPLORATION -> {
+                    contentTypeIds.add("12");
+                    contentTypeIds.add("28");
+                }
+            }
+        }
+
+        if (contentTypeIds.isEmpty()) {
+            contentTypeIds.addAll(List.of("12", "14", "39"));
+        }
+
+        return contentTypeIds.stream()
+                .distinct()
+                .toList();
+    }
+
+    private CandidatePlace enrich(CandidatePlace place) {
+        CandidatePlace enriched = place;
+        enriched = mergeFirstItem(enriched, () -> tourApiClient.getDetailCommon(place.contentId(), place.contentTypeId()));
+        enriched = mergeFirstItem(enriched, () -> tourApiClient.getDetailIntro(place.contentId(), place.contentTypeId()));
+        enriched = mergeFirstItem(enriched, () -> tourApiClient.getDetailInfo(place.contentId(), place.contentTypeId()));
+        return enriched;
+    }
+
+    private CandidatePlace mergeFirstItem(CandidatePlace base, java.util.function.Supplier<TourApiResponse> supplier) {
+        try {
+            TourApiResponse response = supplier.get();
+            validateResponse(response);
+            return extractItems(response).stream()
+                    .findFirst()
+                    .map(CandidatePlace::from)
+                    .map(base::merge)
+                    .orElse(base);
+        } catch (RuntimeException exception) {
+            log.debug("Tour API detail enrichment failed. contentId={}", base.contentId(), exception);
+            return base;
+        }
+    }
+
+    private boolean isFinishedEvent(CandidatePlace place, CourseRecommendCommand command) {
+        if (!"15".equals(place.contentTypeId()) || place.eventEndDate() == null) {
+            return false;
+        }
+
+        try {
+            java.time.LocalDate eventEndDate = java.time.LocalDate.parse(
+                    place.eventEndDate(),
+                    java.time.format.DateTimeFormatter.BASIC_ISO_DATE
+            );
+            return eventEndDate.isBefore(command.startDate());
+        } catch (RuntimeException exception) {
+            return false;
+        }
     }
 
     private List<String> buildKeywords(CourseRecommendCommand command) {
