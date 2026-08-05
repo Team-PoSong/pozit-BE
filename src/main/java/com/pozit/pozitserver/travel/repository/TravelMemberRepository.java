@@ -35,6 +35,8 @@ public interface TravelMemberRepository extends JpaRepository<TravelMember, Long
 
     boolean existsByTravelAndUser(Travel travel, User user);
 
+    void deleteByUser(User user);
+
     @Query("""
         select count(tm)
         from TravelMember tm
