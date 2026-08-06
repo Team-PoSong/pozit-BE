@@ -2,6 +2,8 @@ package com.pozit.pozitserver.course.dto.response.coursespot;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import java.math.BigDecimal;
+
 @Schema(description = "인기 관광지 랭킹 응답")
 public record HostTouristSpotRankResponse(
         @Schema(description = "랭킹 순위", example = "1")
@@ -15,6 +17,12 @@ public record HostTouristSpotRankResponse(
 
         @Schema(description = "주소", example = "서울특별시 종로구 사직로 161")
         String address,
+
+        @Schema(description = "위도", example = "37.5796170")
+        BigDecimal latitude,
+
+        @Schema(description = "경도", example = "126.9770410")
+        BigDecimal longitude,
 
         @Schema(description = "대표 이미지 URL", example = "https://...")
         String imageUrl,
