@@ -170,13 +170,14 @@ public class TravelService {
 
         Long memberCount=travelMemberRepository.countByTravel(travel);
         List<String> tags=travelTagRepository.findTagNamesByTravelId(travel.getId());
+        String imageUrl = createBackgroundImageUrl(travel);
 
         boolean alreadyJoined=travelMemberRepository.existsByTravelAndUser(travel,user);
         if(alreadyJoined){
-            return TravelJoinResponse.joined(travel, memberCount, tags);
+            return TravelJoinResponse.joined(travel, memberCount, tags, imageUrl);
         }
 
-        return TravelJoinResponse.from(travel, memberCount, tags);
+        return TravelJoinResponse.from(travel, memberCount, tags, imageUrl);
     }
 
     /**
