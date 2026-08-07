@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -21,6 +22,8 @@ public interface TouristSpotRepository extends JpaRepository<TouristSpot, Long> 
                 ts.id as touristSpotId,
                 ts.name as title,
                 ts.address as address,
+                ts.latitude as latitude,
+                ts.longitude as longitude,
                 ts.imageUrl as imageUrl,
                 count(cs.id) as courseSpotCount
             from CourseSpot cs
@@ -32,7 +35,7 @@ public interface TouristSpotRepository extends JpaRepository<TouristSpot, Long> 
                 or r.code like concat(:regionCode, '%')
                 or ts.legalDongRegionCode = :legalDongRegionCode
                 or ts.legalDongSigunguCode = :legalDongSigunguCode)
-            group by ts.id, ts.name, ts.address, ts.imageUrl
+            group by ts.id, ts.name, ts.address, ts.latitude, ts.longitude, ts.imageUrl
             order by count(cs.id) desc, ts.id asc
             """)
     List<TouristSpotRankProjection> findHostTouristSpotsRank(
@@ -48,6 +51,10 @@ public interface TouristSpotRepository extends JpaRepository<TouristSpot, Long> 
         String getTitle();
 
         String getAddress();
+
+        BigDecimal getLatitude();
+
+        BigDecimal getLongitude();
 
         String getImageUrl();
 

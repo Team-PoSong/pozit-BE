@@ -127,6 +127,8 @@ public class TouristSpotController {
                                             "touristSpotId": 1,
                                             "title": "경복궁",
                                             "address": "서울특별시 종로구 사직로 161",
+                                            "latitude": 37.5796170,
+                                            "longitude": 126.9770410,
                                             "imageUrl": "https://...",
                                             "courseSpotCount": 12
                                           }

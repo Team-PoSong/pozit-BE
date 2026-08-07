@@ -76,6 +76,8 @@ public class TouristSpotService {
                     rank.getTouristSpotId(),
                     rank.getTitle(),
                     rank.getAddress(),
+                    rank.getLatitude(),
+                    rank.getLongitude(),
                     rank.getImageUrl(),
                     rank.getCourseSpotCount()
             ));
