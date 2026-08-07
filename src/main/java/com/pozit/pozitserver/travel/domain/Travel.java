@@ -33,7 +33,7 @@ public class Travel {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "leader_id", nullable = false)
+    @JoinColumn(name = "leader_id")
     private User leader;
 
     @Column(nullable = false, length = 50)
@@ -134,6 +134,9 @@ public class Travel {
         this.backgroundImageUrl = backgroundImageUrl;
     }
 
+    /**
+     * 리더를 위임한다. 남은 멤버가 없어 위임할 대상이 없는 경우 newLeader는 null이 될 수 있다.
+     */
     public void transferLeader(User newLeader) {
         this.leader = newLeader;
     }

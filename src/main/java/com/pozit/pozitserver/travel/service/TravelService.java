@@ -12,6 +12,7 @@ import com.pozit.pozitserver.global.util.RandomUtil;
 import com.pozit.pozitserver.like.repository.LikeRepository;
 import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.pozing.domain.PozingEditJob;
+import com.pozit.pozitserver.pozing.domain.PozingEditJobStatus;
 import com.pozit.pozitserver.pozing.dto.request.PozingSaveRequest;
 import com.pozit.pozitserver.pozing.dto.response.PozingSaveResponse;
 import com.pozit.pozitserver.pozing.repository.PozingEditJobRepository;
@@ -334,7 +335,10 @@ public class TravelService {
     private String currentLeaderNickname(Travel travel) {
         List<TravelMember> members = travelMemberRepository.findAllWithUserByTravelIn(List.of(travel));
         String leaderNickname = leaderNicknameOf(members);
-        return leaderNickname != null ? leaderNickname : travel.getLeader().getNickname();
+        if (leaderNickname != null) {
+            return leaderNickname;
+        }
+        return travel.getLeader() != null ? travel.getLeader().getNickname() : null;
     }
 
     private String createBackgroundImageUrl(Travel travel) {
@@ -894,6 +898,14 @@ public class TravelService {
             throw new BusinessException(ErrorCode.CANNOT_DELETE_COMPLETED_TRAVEL);
         }
 
+        boolean hasActiveEditJob = pozingEditJobRepository.existsByTravelAndStatusIn(
+                travel,
+                List.of(PozingEditJobStatus.QUEUED, PozingEditJobStatus.PROCESSING)
+        );
+        if (hasActiveEditJob) {
+            throw new BusinessException(ErrorCode.CANNOT_DELETE_TRAVEL_WITH_ACTIVE_EDIT_JOB);
+        }
+
         List<Course> courses = courseRepository.findByTravelOrderByDayNumberAsc(travel);
         List<CourseSpot> spots = courses.isEmpty()
                 ? List.of()
@@ -969,14 +981,17 @@ public class TravelService {
     }
 
     /**
-     * 가장 먼저 참여한 다른 멤버에게 리더를 위임
+     * 가장 먼저 참여한 다른 멤버에게 리더를 위임한다. 남은 멤버가 없으면(=마지막 리더 나가기) Travel.leader를 null로 비운다.
      */
     private void transferLeadershipToNextMember(Travel travel, TravelMember leavingLeader) {
         travelMemberRepository.findFirstByTravelAndUserNotOrderByJoinedAtAscIdAsc(travel, leavingLeader.getUser())
-                .ifPresent(nextLeader -> {
-                    nextLeader.changeRole(TravelMemberRole.LEADER);
-                    travel.transferLeader(nextLeader.getUser());
-                });
+                .ifPresentOrElse(
+                        nextLeader -> {
+                            nextLeader.changeRole(TravelMemberRole.LEADER);
+                            travel.transferLeader(nextLeader.getUser());
+                        },
+                        () -> travel.transferLeader(null)
+                );
     }
 
     /**

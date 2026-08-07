@@ -34,6 +34,7 @@ public enum ErrorCode {
     CANNOT_DELETE_COMPLETED_TRAVEL(HttpStatus.BAD_REQUEST, "TRAVEL400_12", "완료된 여행은 삭제할 수 없습니다. 여행 나가기를 이용해주세요."),
     TRAVEL_NOT_FOUND(HttpStatus.NOT_FOUND, "TRAVEL404_1", "해당 여행을 찾을 수 없습니다."),
     TRAVEL_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "TRAVEL404_2", "해당 여행 멤버를 찾을 수 없습니다."),
+    CANNOT_DELETE_TRAVEL_WITH_ACTIVE_EDIT_JOB(HttpStatus.CONFLICT, "TRAVEL409_1", "포징 편집 작업이 진행 중이어서 여행을 삭제할 수 없습니다. 잠시 후 다시 시도해주세요."),
     INVITE_CODE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "TRAVEL500_1", "초대 코드 생성에 실패했습니다."),
 
     // Course

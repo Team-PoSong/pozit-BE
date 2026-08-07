@@ -536,6 +536,20 @@ public class TravelController {
                     responseCode = "404",
                     description = "존재하지 않는 여행",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "포징 편집 작업이 진행 중(QUEUED/PROCESSING)이어서 삭제 불가",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "TRAVEL409_1",
+                                      "message": "포징 편집 작업이 진행 중이어서 여행을 삭제할 수 없습니다. 잠시 후 다시 시도해주세요."
+                                    }
+                                    """)
+                    )
             )
     })
     public SuccessResponse<Void> deleteTravel(
