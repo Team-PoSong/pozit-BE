@@ -14,12 +14,14 @@ public record TravelJoinResponse(
         Long memberCount,
         List<String> tags,
         LocalDate startDate,
-        LocalDate endDate
+        LocalDate endDate,
+        String imageUrl
 ){
     public static TravelJoinResponse from(
             Travel travel,
             Long memberCount,
-            List<String> tags
+            List<String> tags,
+            String imageUrl
     ){
         return new TravelJoinResponse(
                 "성공적으로 조회했어요.",
@@ -30,14 +32,16 @@ public record TravelJoinResponse(
                 memberCount,
                 tags,
                 travel.getStartDate(),
-                travel.getEndDate()
+                travel.getEndDate(),
+                imageUrl
         );
     }
 
     public static TravelJoinResponse joined(
             Travel travel,
             Long memberCount,
-            List<String> tags
+            List<String> tags,
+            String imageUrl
     ){
         return new TravelJoinResponse(
                 "이미 참여한 여행입니다.",
@@ -48,14 +52,16 @@ public record TravelJoinResponse(
                 memberCount,
                 tags,
                 travel.getStartDate(),
-                travel.getEndDate()
+                travel.getEndDate(),
+                imageUrl
         );
     }
 
     public static TravelJoinResponse doneTravel(
             Travel travel,
             Long memberCount,
-            List<String> tags
+            List<String> tags,
+            String imageUrl
     ){
         return new TravelJoinResponse(
                 "참여할 수 없는 여행입니다.",
@@ -66,8 +72,8 @@ public record TravelJoinResponse(
                 memberCount,
                 tags,
                 travel.getStartDate(),
-                travel.getEndDate()
+                travel.getEndDate(),
+                imageUrl
         );
     }
 }
-
