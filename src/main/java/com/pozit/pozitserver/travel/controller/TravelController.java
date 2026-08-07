@@ -560,7 +560,7 @@ public class TravelController {
     }
 
     @DeleteMapping("/{travelId}/leave")
-    @Operation(summary = "여행 나가기", description = "멤버가 여행에서 나갑니다. 진행중/예정 여행의 리더는 나갈 수 없으며 여행을 삭제해야 합니다. 완료된 여행의 리더는 가장 먼저 참여한 다른 멤버에게 리더를 위임하고 나갈 수 있습니다.")
+    @Operation(summary = "여행 나가기", description = "멤버가 여행에서 나갑니다. 진행중/예정 여행의 리더는 나갈 수 없으며 여행을 삭제해야 합니다. 완료된 여행의 리더는 나갈 수 있으며, 남은 멤버가 있다면 가장 먼저 참여한 멤버에게 리더가 위임되고, 마지막 남은 멤버였다면 위임 없이 리더 없는 상태로 나갑니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "나가기 성공"),
             @ApiResponse(
