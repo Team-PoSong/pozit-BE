@@ -29,13 +29,10 @@ public class AuthKakaoService {
         KakaoTokenResponse kakaoToken =
                 kakaoClient.requestAccessToken(authorizationCode);
 
-        return loginWithKakaoAccessToken(kakaoToken.accessToken(), "kakao-web");
+        return loginWithKakaoAccessToken(kakaoToken.accessToken());
     }
 
-    public LoginTokenResponse loginWithKakaoAccessToken(
-            String kakaoAccessToken,
-            String deviceId
-    ) {
+    public LoginTokenResponse loginWithKakaoAccessToken(String kakaoAccessToken) {
         KakaoUserResponse kakaoUser =
                 kakaoClient.requestUserInfo(kakaoAccessToken);
 
@@ -59,6 +56,6 @@ public class AuthKakaoService {
                                 .build()
                 ));
 
-        return authTokenService.issueLoginTokens(user, deviceId, isNewUser);
+        return authTokenService.issueLoginTokens(user, isNewUser);
     }
 }
