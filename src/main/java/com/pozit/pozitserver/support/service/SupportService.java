@@ -36,7 +36,7 @@ public class SupportService {
     private TermResponse getLatestTerm(TermType type) {
         Term term = termRepository.findTopByTypeOrderByCreatedAtDesc(type)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TERM_NOT_FOUND));
-        return new TermResponse(term.getTitle(), term.getContent(), term.getVersion());
+        return new TermResponse(term.getTitle(), term.getContent(), term.getVersion(), term.getEffectiveDate());
     }
 
     @Transactional
