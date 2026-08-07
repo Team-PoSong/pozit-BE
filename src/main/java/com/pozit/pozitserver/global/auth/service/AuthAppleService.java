@@ -49,7 +49,7 @@ public class AuthAppleService {
                                 .build()
                 ));
 
-        return authTokenService.issueLoginTokens(user, request.deviceId(), isNewUser);
+        return authTokenService.issueLoginTokens(user, isNewUser);
     }
 
     private String resolveNickname(
