@@ -1,7 +1,6 @@
 package com.pozit.pozitserver.global.auth.controller;
 
 import com.pozit.pozitserver.global.auth.dto.request.KakaoAccessTokenRequest;
-import com.pozit.pozitserver.global.auth.dto.request.LogoutRequest;
 import com.pozit.pozitserver.global.auth.dto.request.TokenReissueRequest;
 import com.pozit.pozitserver.global.auth.dto.response.LoginTokenResponse;
 import com.pozit.pozitserver.global.auth.annotation.CurrentUser;
@@ -74,7 +73,7 @@ public class AuthController {
 
     @Operation(
             summary = "카카오 네이티브 앱 로그인",
-            description = "Flutter Kakao SDK에서 발급받은 카카오 accessToken을 전달받아 카카오 사용자 정보를 조회하고, 회원 조회 또는 가입 후 POZIT JWT를 발급합니다. deviceId는 카카오에서 받는 값이 아니라 앱 클라이언트가 생성한 UUID이며, secure storage 등에 저장하고 같은 기기의 로그인/재발급/로그아웃 요청에서 동일하게 전달해야 합니다."
+            description = "Flutter Kakao SDK에서 발급받은 카카오 accessToken을 전달받아 카카오 사용자 정보를 조회하고, 회원 조회 또는 가입 후 POZIT JWT를 발급합니다."
     )
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
             description = "Flutter Kakao SDK 로그인 성공 결과로 받은 OAuthToken.accessToken",
@@ -85,8 +84,7 @@ public class AuthController {
                             name = "카카오 accessToken 요청",
                             value = """
                                     {
-                                      "accessToken": "kakao_access_token",
-                                      "deviceId": "550e8400-e29b-41d4-a716-446655440000"
+                                      "accessToken": "kakao_access_token"
                                     }
                                     """
                     )
@@ -102,34 +100,33 @@ public class AuthController {
             @Valid @RequestBody KakaoAccessTokenRequest request
     ) {
         LoginTokenResponse response =
-                authService.loginWithKakaoAccessToken(request.accessToken(), request.deviceId());
+                authService.loginWithKakaoAccessToken(request.accessToken());
         return SuccessResponse.ok(response);
     }
 
     @Operation(
             summary = "토큰 재발급",
-            description = "Refresh Token과 로그인 시 사용한 deviceId로 새 Access Token과 Refresh Token을 발급합니다. deviceId는 소셜 제공자 값이 아니라 앱 클라이언트가 생성해 보관하는 UUID입니다. 재발급 성공 시 기존 Refresh Token은 폐기되고 새 Refresh Token으로 교체됩니다."
+            description = "Refresh Token으로 새 Access Token과 Refresh Token을 발급합니다. 재발급 성공 시 기존 Refresh Token은 폐기되고 새 Refresh Token으로 교체됩니다."
     )
     @PostMapping("/reissue")
     public SuccessResponse<LoginTokenResponse> reissue(
             @Valid @RequestBody TokenReissueRequest request
     ) {
         LoginTokenResponse response =
-                authTokenService.reissue(request.refreshToken(), request.deviceId());
+                authTokenService.reissue(request.refreshToken());
         return SuccessResponse.ok(response);
     }
 
     @Operation(
             summary = "로그아웃",
-            description = "현재 로그인한 사용자와 요청 deviceId에 해당하는 기기의 Refresh Token을 Redis에서 삭제하고, 현재 Access Token은 남은 만료 시간 동안 Redis blacklist에 등록해 즉시 사용할 수 없게 합니다. deviceId는 앱 클라이언트가 생성해 보관하는 UUID이며, 카카오/Apple에서 발급받는 값이 아닙니다."
+            description = "현재 로그인한 사용자의 Refresh Token을 Redis에서 삭제하고, 현재 Access Token은 남은 만료 시간 동안 Redis blacklist에 등록해 즉시 사용할 수 없게 합니다."
     )
     @PostMapping("/logout")
     public SuccessResponse<Void> logout(
             @CurrentUser User user,
-            @Valid @RequestBody LogoutRequest request,
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader
     ) {
-        authTokenService.logout(user.getId(), request.deviceId(), authorizationHeader);
+        authTokenService.logout(user.getId(), authorizationHeader);
         return SuccessResponse.ok();
     }
 
@@ -137,7 +134,7 @@ public class AuthController {
     @PostMapping("/apple")
     @Operation(
             summary = "애플 네이티브 앱 로그인",
-            description = "Flutter iOS/Android에서 Apple 로그인 후 받은 identityToken을 검증하고 POZIT JWT를 발급합니다. platform 값에 따라 iOS는 bundleId, Android는 serviceId로 audience를 검증하며, nonce claim도 함께 검증합니다. deviceId는 Apple에서 받는 값이 아니라 앱 클라이언트가 생성한 UUID이며, secure storage 등에 저장하고 같은 기기의 로그인/재발급/로그아웃 요청에서 동일하게 전달해야 합니다."
+            description = "Flutter iOS/Android에서 Apple 로그인 후 받은 identityToken을 검증하고 POZIT JWT를 발급합니다. platform 값에 따라 iOS는 bundleId, Android는 serviceId로 audience를 검증하며, nonce claim도 함께 검증합니다."
     )
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
             description = "Apple 로그인 성공 후 클라이언트가 받은 토큰 및 플랫폼 정보",
@@ -153,7 +150,6 @@ public class AuthController {
                                               "authorizationCode": "c1234567890...",
                                               "nonce": "d8f3b2a1c9",
                                               "platform": "IOS",
-                                              "deviceId": "550e8400-e29b-41d4-a716-446655440000",
                                               "email": "user@example.com",
                                               "givenName": "Minseo",
                                               "familyName": "Kim"
@@ -168,7 +164,6 @@ public class AuthController {
                                               "authorizationCode": "c1234567890...",
                                               "nonce": "d8f3b2a1c9",
                                               "platform": "ANDROID",
-                                              "deviceId": "550e8400-e29b-41d4-a716-446655440000",
                                               "email": "user@example.com",
                                               "givenName": "Minseo",
                                               "familyName": "Kim"
