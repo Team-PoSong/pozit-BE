@@ -185,6 +185,10 @@ public class TravelService {
             return TravelJoinResponse.joined(travel, leaderNickname, memberCount, tags, imageUrl);
         }
 
+        if (travel.getStatus() == TravelStatus.DONE) {
+            return TravelJoinResponse.doneTravel(travel, leaderNickname, memberCount, tags, imageUrl);
+        }
+
         return TravelJoinResponse.from(travel, leaderNickname, memberCount, tags, imageUrl);
     }
 
@@ -193,8 +197,12 @@ public class TravelService {
      */
     @Transactional
     public JoinResponse joinTravel(Long travelId, User user){
-        Travel travel=travelRepository.findById(travelId)
+        Travel travel=travelRepository.findByIdForUpdate(travelId)
                 .orElseThrow(()->new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
+
+        if (travel.getStatus() == TravelStatus.DONE) {
+            throw new BusinessException(ErrorCode.CANNOT_JOIN_FINISHED_TRAVEL);
+        }
 
         TravelMember travelMember=TravelMember.builder()
                 .travel(travel)
@@ -889,7 +897,7 @@ public class TravelService {
      */
     @Transactional
     public void deleteTravel(User currentUser, Long travelId) {
-        Travel travel = travelRepository.findById(travelId)
+        Travel travel = travelRepository.findByIdForUpdate(travelId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
 
         validateLeader(travel, currentUser);
@@ -964,7 +972,7 @@ public class TravelService {
      */
     @Transactional
     public void leaveTravel(User currentUser, Long travelId) {
-        Travel travel = travelRepository.findById(travelId)
+        Travel travel = travelRepository.findByIdForUpdate(travelId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
 
         TravelMember member = travelMemberRepository.findByTravelAndUser(travel, currentUser)
@@ -999,7 +1007,7 @@ public class TravelService {
      */
     @Transactional
     public void removeMember(User currentUser, Long travelId, Long targetUserId) {
-        Travel travel = travelRepository.findById(travelId)
+        Travel travel = travelRepository.findByIdForUpdate(travelId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
 
         validateLeader(travel, currentUser);
