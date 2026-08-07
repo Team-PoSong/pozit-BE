@@ -26,9 +26,10 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class SupportService {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final TermRepository termRepository;
     private final FeedbackRepository feedbackRepository;
-    private final ObjectMapper objectMapper;
 
     /**
      * 이용약관 및 개인정보처리방침의 최신 버전 조회
@@ -53,7 +54,7 @@ public class SupportService {
 
     private List<TermSectionResponse> parseSections(String content) {
         try {
-            return objectMapper.readValue(content, new TypeReference<List<TermSectionResponse>>() {});
+            return OBJECT_MAPPER.readValue(content, new TypeReference<List<TermSectionResponse>>() {});
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.COMMON500);
         }
