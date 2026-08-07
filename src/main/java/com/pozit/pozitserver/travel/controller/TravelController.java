@@ -504,6 +504,130 @@ public class TravelController {
         return SuccessResponse.ok();
     }
 
+    @DeleteMapping("/{travelId}")
+    @Operation(summary = "여행 삭제", description = "리더가 여행을 삭제합니다. 코스, 스팟, 포징, 태그, 찜, 멤버 등 하위 데이터가 모두 함께 삭제됩니다. 완료된 여행은 삭제할 수 없고, 여행 나가기를 이용해야 합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "삭제 성공"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "완료된 여행은 삭제 불가",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "TRAVEL400_12",
+                                      "message": "완료된 여행은 삭제할 수 없습니다. 여행 나가기를 이용해주세요."
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "인증되지 않은 요청",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "여행 리더가 아니어서 삭제 권한이 없음",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "존재하지 않는 여행",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            )
+    })
+    public SuccessResponse<Void> deleteTravel(
+            @CurrentUser User currentUser,
+            @Parameter(description = "여행 ID") @PathVariable Long travelId) {
+        travelService.deleteTravel(currentUser, travelId);
+        return SuccessResponse.ok();
+    }
+
+    @DeleteMapping("/{travelId}/leave")
+    @Operation(summary = "여행 나가기", description = "멤버가 여행에서 나갑니다. 진행중/예정 여행의 리더는 나갈 수 없으며 여행을 삭제해야 합니다. 완료된 여행의 리더는 가장 먼저 참여한 다른 멤버에게 리더를 위임하고 나갈 수 있습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "나가기 성공"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "진행중/예정 여행의 리더는 나갈 수 없음",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "TRAVEL400_10",
+                                      "message": "리더는 여행을 나갈 수 없습니다. 여행 삭제를 이용해주세요."
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "인증되지 않은 요청",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "해당 여행의 멤버가 아님",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "존재하지 않는 여행",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            )
+    })
+    public SuccessResponse<Void> leaveTravel(
+            @CurrentUser User currentUser,
+            @Parameter(description = "여행 ID") @PathVariable Long travelId) {
+        travelService.leaveTravel(currentUser, travelId);
+        return SuccessResponse.ok();
+    }
+
+    @DeleteMapping("/{travelId}/members/{userId}")
+    @Operation(summary = "여행 멤버 내보내기", description = "리더가 특정 멤버를 여행에서 내보냅니다. 본인은 내보낼 수 없습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "삭제 성공"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "본인을 삭제하려는 요청",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "TRAVEL400_11",
+                                      "message": "본인은 삭제할 수 없습니다."
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "인증되지 않은 요청",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "여행 리더가 아니어서 삭제 권한이 없음",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "존재하지 않는 여행 또는 팀원",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            )
+    })
+    public SuccessResponse<Void> removeMember(
+            @CurrentUser User currentUser,
+            @Parameter(description = "여행 ID") @PathVariable Long travelId,
+            @Parameter(description = "삭제할 팀원의 사용자 ID") @PathVariable Long userId) {
+        travelService.removeMember(currentUser, travelId, userId);
+        return SuccessResponse.ok();
+    }
+
     @PostMapping("presigned-url/{travelId}/background-image")
     @Operation(summary = "배경 사진 업로드 URL 발급", description = "S3 presigned URL을 발급합니다. 클라이언트는 해당 URL로 직접 업로드합니다.")
     public SuccessResponse<PresignedUrlResponse> getBackgroundImageUploadUrl(

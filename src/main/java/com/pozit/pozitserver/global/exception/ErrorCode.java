@@ -29,7 +29,11 @@ public enum ErrorCode {
     CANNOT_JOIN_FINISHED_TRAVEL(HttpStatus.BAD_REQUEST, "TRAVEL400_7", "종료된 여행에는 참여할 수 없습니다."),
     INVALID_SEARCH_PERIOD(HttpStatus.BAD_REQUEST, "TRAVEL400_8", "검색 기간이 올바르지 않습니다."),
     BACKGROUND_IMAGE_UPLOAD_OBJECT_NOT_FOUND(HttpStatus.BAD_REQUEST, "TRAVEL400_9", "S3에 업로드된 배경 사진을 찾을 수 없습니다."),
+    CANNOT_LEAVE_AS_LEADER(HttpStatus.BAD_REQUEST, "TRAVEL400_10", "리더는 여행을 나갈 수 없습니다. 여행 삭제를 이용해주세요."),
+    CANNOT_REMOVE_SELF(HttpStatus.BAD_REQUEST, "TRAVEL400_11", "본인은 삭제할 수 없습니다."),
+    CANNOT_DELETE_COMPLETED_TRAVEL(HttpStatus.BAD_REQUEST, "TRAVEL400_12", "완료된 여행은 삭제할 수 없습니다. 여행 나가기를 이용해주세요."),
     TRAVEL_NOT_FOUND(HttpStatus.NOT_FOUND, "TRAVEL404_1", "해당 여행을 찾을 수 없습니다."),
+    TRAVEL_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "TRAVEL404_2", "해당 여행 멤버를 찾을 수 없습니다."),
     INVITE_CODE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "TRAVEL500_1", "초대 코드 생성에 실패했습니다."),
 
     // Course

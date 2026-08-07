@@ -11,8 +11,10 @@ import com.pozit.pozitserver.global.s3.S3Service;
 import com.pozit.pozitserver.global.util.RandomUtil;
 import com.pozit.pozitserver.like.repository.LikeRepository;
 import com.pozit.pozitserver.pozing.domain.Pozing;
+import com.pozit.pozitserver.pozing.domain.PozingEditJob;
 import com.pozit.pozitserver.pozing.dto.request.PozingSaveRequest;
 import com.pozit.pozitserver.pozing.dto.response.PozingSaveResponse;
+import com.pozit.pozitserver.pozing.repository.PozingEditJobRepository;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
 import com.pozit.pozitserver.tag.domain.Tag;
 import com.pozit.pozitserver.tag.domain.TravelTag;
@@ -33,6 +35,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDate;
 import java.time.Duration;
@@ -43,6 +47,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -68,6 +73,7 @@ public class TravelService {
     private final CourseRepository courseRepository;
     private final CourseSpotRepository courseSpotRepository;
     private final PozingRepository pozingRepository;
+    private final PozingEditJobRepository pozingEditJobRepository;
     private final LikeRepository likeRepository;
     private final S3Service s3Service;
 
@@ -171,13 +177,14 @@ public class TravelService {
         Long memberCount=travelMemberRepository.countByTravel(travel);
         List<String> tags=travelTagRepository.findTagNamesByTravelId(travel.getId());
         String imageUrl = createBackgroundImageUrl(travel);
+        String leaderNickname = currentLeaderNickname(travel);
 
         boolean alreadyJoined=travelMemberRepository.existsByTravelAndUser(travel,user);
         if(alreadyJoined){
-            return TravelJoinResponse.joined(travel, memberCount, tags, imageUrl);
+            return TravelJoinResponse.joined(travel, leaderNickname, memberCount, tags, imageUrl);
         }
 
-        return TravelJoinResponse.from(travel, memberCount, tags, imageUrl);
+        return TravelJoinResponse.from(travel, leaderNickname, memberCount, tags, imageUrl);
     }
 
     /**
@@ -322,6 +329,12 @@ public class TravelService {
                 .findFirst()
                 .map(m -> m.getUser().getNickname())
                 .orElse(null);
+    }
+
+    private String currentLeaderNickname(Travel travel) {
+        List<TravelMember> members = travelMemberRepository.findAllWithUserByTravelIn(List.of(travel));
+        String leaderNickname = leaderNicknameOf(members);
+        return leaderNickname != null ? leaderNickname : travel.getLeader().getNickname();
     }
 
     private String createBackgroundImageUrl(Travel travel) {
@@ -865,5 +878,124 @@ public class TravelService {
         if (member.getRole() != TravelMemberRole.LEADER) {
             throw new BusinessException(ErrorCode.COMMON403);
         }
+    }
+
+    /**
+     * 여행 삭제
+     */
+    @Transactional
+    public void deleteTravel(User currentUser, Long travelId) {
+        Travel travel = travelRepository.findById(travelId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
+
+        validateLeader(travel, currentUser);
+
+        if (travel.getStatus() == TravelStatus.DONE) {
+            throw new BusinessException(ErrorCode.CANNOT_DELETE_COMPLETED_TRAVEL);
+        }
+
+        List<Course> courses = courseRepository.findByTravelOrderByDayNumberAsc(travel);
+        List<CourseSpot> spots = courses.isEmpty()
+                ? List.of()
+                : courseSpotRepository.findAllByCourseInOrder(courses);
+        List<Pozing> pozings = spots.isEmpty()
+                ? List.of()
+                : pozingRepository.findByCourseSpotIn(spots);
+
+        List<PozingEditJob> editJobs = pozingEditJobRepository.findByTravel(travel);
+
+        List<String> objectKeysToDelete = new ArrayList<>(pozings.stream().map(Pozing::getPozingObjectKey).toList());
+        editJobs.stream().map(PozingEditJob::getResultS3Key).filter(Objects::nonNull).forEach(objectKeysToDelete::add);
+        String backgroundImageKey = travel.getBackgroundImageUrl();
+
+        pozingEditJobRepository.deleteAllInBatch(editJobs);
+        pozingRepository.deleteAllInBatch(pozings);
+        courseSpotRepository.deleteAllInBatch(spots);
+        courseRepository.deleteAllInBatch(courses);
+        travelTagRepository.deleteAllInBatch(travelTagRepository.findByTravel(travel));
+        likeRepository.deleteByTravel(travel);
+        travelMemberRepository.deleteAllInBatch(travelMemberRepository.findByTravel(travel));
+        travelRepository.delete(travel);
+
+        deleteTravelObjectsAfterCommit(objectKeysToDelete, backgroundImageKey);
+    }
+
+    private void deleteTravelObjectsAfterCommit(List<String> objectKeysToDelete, String backgroundImageKey) {
+        if (objectKeysToDelete.isEmpty() && backgroundImageKey == null) {
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                objectKeysToDelete.forEach(objectKey -> {
+                    try {
+                        s3Service.delete(objectKey);
+                    } catch (Exception e) {
+                        log.error("Failed to delete deleted travel's S3 object. objectKey={}", objectKey, e);
+                    }
+                });
+
+                if (backgroundImageKey != null) {
+                    try {
+                        s3Service.delete(backgroundImageKey);
+                    } catch (Exception e) {
+                        log.error("Failed to delete deleted travel's background image object. objectKey={}", backgroundImageKey, e);
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * 여행 나가기
+     */
+    @Transactional
+    public void leaveTravel(User currentUser, Long travelId) {
+        Travel travel = travelRepository.findById(travelId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
+
+        TravelMember member = travelMemberRepository.findByTravelAndUser(travel, currentUser)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMON403));
+
+        if (member.getRole() == TravelMemberRole.LEADER) {
+            if (travel.getStatus() != TravelStatus.DONE) {
+                throw new BusinessException(ErrorCode.CANNOT_LEAVE_AS_LEADER);
+            }
+            transferLeadershipToNextMember(travel, member);
+        }
+
+        travelMemberRepository.delete(member);
+    }
+
+    /**
+     * 가장 먼저 참여한 다른 멤버에게 리더를 위임
+     */
+    private void transferLeadershipToNextMember(Travel travel, TravelMember leavingLeader) {
+        travelMemberRepository.findFirstByTravelAndUserNotOrderByJoinedAtAscIdAsc(travel, leavingLeader.getUser())
+                .ifPresent(nextLeader -> {
+                    nextLeader.changeRole(TravelMemberRole.LEADER);
+                    travel.transferLeader(nextLeader.getUser());
+                });
+    }
+
+    /**
+     * 팀원 삭제 (리더만 가능, 본인은 삭제 불가)
+     */
+    @Transactional
+    public void removeMember(User currentUser, Long travelId, Long targetUserId) {
+        Travel travel = travelRepository.findById(travelId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
+
+        validateLeader(travel, currentUser);
+
+        if (currentUser.getId().equals(targetUserId)) {
+            throw new BusinessException(ErrorCode.CANNOT_REMOVE_SELF);
+        }
+
+        TravelMember targetMember = travelMemberRepository.findByTravel_IdAndUser_Id(travelId, targetUserId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_MEMBER_NOT_FOUND));
+
+        travelMemberRepository.delete(targetMember);
     }
 }

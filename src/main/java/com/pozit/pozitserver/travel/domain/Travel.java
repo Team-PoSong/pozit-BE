@@ -134,6 +134,10 @@ public class Travel {
         this.backgroundImageUrl = backgroundImageUrl;
     }
 
+    public void transferLeader(User newLeader) {
+        this.leader = newLeader;
+    }
+
     public void changeStatus(TravelStatus status) {
         this.status = status;
     }
