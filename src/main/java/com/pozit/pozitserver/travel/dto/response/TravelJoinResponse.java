@@ -19,6 +19,7 @@ public record TravelJoinResponse(
 ){
     public static TravelJoinResponse from(
             Travel travel,
+            String leaderNickname,
             Long memberCount,
             List<String> tags,
             String imageUrl
@@ -28,7 +29,7 @@ public record TravelJoinResponse(
                 travel.getId(),
                 travel.getTitle(),
                 travel.getDestination(),
-                travel.getLeader().getNickname(),
+                leaderNickname,
                 memberCount,
                 tags,
                 travel.getStartDate(),
@@ -39,6 +40,7 @@ public record TravelJoinResponse(
 
     public static TravelJoinResponse joined(
             Travel travel,
+            String leaderNickname,
             Long memberCount,
             List<String> tags,
             String imageUrl
@@ -48,7 +50,7 @@ public record TravelJoinResponse(
                 travel.getId(),
                 travel.getTitle(),
                 travel.getDestination(),
-                travel.getLeader().getNickname(),
+                leaderNickname,
                 memberCount,
                 tags,
                 travel.getStartDate(),
@@ -59,6 +61,7 @@ public record TravelJoinResponse(
 
     public static TravelJoinResponse doneTravel(
             Travel travel,
+            String leaderNickname,
             Long memberCount,
             List<String> tags,
             String imageUrl
@@ -68,7 +71,7 @@ public record TravelJoinResponse(
                 travel.getId(),
                 travel.getTitle(),
                 travel.getDestination(),
-                travel.getLeader().getNickname(),
+                leaderNickname,
                 memberCount,
                 tags,
                 travel.getStartDate(),
