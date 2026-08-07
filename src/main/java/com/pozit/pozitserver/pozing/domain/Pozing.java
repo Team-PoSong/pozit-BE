@@ -31,7 +31,7 @@ public class Pozing {
     @Column(name = "pozing_object_key", nullable = false)
     private String pozingObjectKey;
 
-    @Column(name = "thumbnail_url")
+    @Column(name = "thumbnail_url", columnDefinition = "TEXT")
     private String thumbnailUrl;
 
     @Column(name = "created_at", nullable = false, updatable = false)
