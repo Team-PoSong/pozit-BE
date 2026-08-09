@@ -18,6 +18,7 @@ import com.pozit.pozitserver.pozing.repository.PozingEditJobRepository;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
 import com.pozit.pozitserver.pozing.worker.PozingEditS3Storage;
 import com.pozit.pozitserver.pozing.worker.PozingEditQueuePublisher;
+import com.pozit.pozitserver.pozing.worker.PozingThumbnailQueuePublisher;
 import com.pozit.pozitserver.travel.domain.Travel;
 import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
@@ -44,6 +45,7 @@ public class PozingService {
 
     private static final Duration PRESIGNED_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final Duration POZING_GET_URL_EXPIRATION = Duration.ofMinutes(10);
+    private static final Duration THUMBNAIL_GET_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final String POZING_VIDEO_CONTENT_TYPE = "video/mp4";
 
     private final S3Service s3Service;
@@ -54,6 +56,7 @@ public class PozingService {
     private final TravelRepository travelRepository;
     private final PozingEditQueuePublisher pozingEditQueuePublisher;
     private final PozingEditS3Storage pozingEditS3Storage;
+    private final PozingThumbnailQueuePublisher pozingThumbnailQueuePublisher;
     private final PlatformTransactionManager transactionManager;
 
     /**
@@ -112,13 +115,15 @@ public class PozingService {
 
         //모든 멤버들이 포징 업데이트 완료 시 VISITED로 상태 변경
         updateCourseSpotStatusIfAllMembersSaved(courseSpot);
+        publishThumbnailJobAfterCommit(pozing.getId());
 
         return new PozingSaveResponse(
                 pozing.getId(),
                 courseSpot.getId(),
                 pozing.getPozingObjectKey(),
                 s3Service.createGetPresignedUrl(pozing.getPozingObjectKey(), POZING_GET_URL_EXPIRATION),
-                pozing.getThumbnailUrl()
+                createThumbnailUrl(pozing),
+                pozing.getThumbnailStatus()
         );
     }
 
@@ -143,7 +148,7 @@ public class PozingService {
         }
 
         PozingEditJob job = pozingEditJobRepository.save(PozingEditJob.queued(travel, user));
-        publishAfterCommit(job.getId());
+        publishEditJobAfterCommit(job.getId());
 
         return new PozingEditJobCreateResponse(job.getId(), job.getStatus());
     }
@@ -183,7 +188,15 @@ public class PozingService {
         }
     }
 
-    private void publishAfterCommit(Long jobId) {
+    private String createThumbnailUrl(Pozing pozing) {
+        if (pozing.getThumbnailObjectKey() == null) {
+            return null;
+        }
+
+        return s3Service.createGetPresignedUrl(pozing.getThumbnailObjectKey(), THUMBNAIL_GET_URL_EXPIRATION);
+    }
+
+    private void publishEditJobAfterCommit(Long jobId) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit(){
@@ -192,6 +205,19 @@ public class PozingService {
                 }catch(Exception e){
                     log.error("Failed to publish pozing edit job. JobId={}",jobId);
                     markJobFailedInNewTransaction(jobId, e.getMessage());
+                }
+            }
+        });
+    }
+
+    private void publishThumbnailJobAfterCommit(Long pozingId) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit(){
+                try{
+                    pozingThumbnailQueuePublisher.publish(pozingId);
+                }catch(Exception e){
+                    log.error("Failed to publish pozing thumbnail job. PozingId={}", pozingId, e);
                 }
             }
         });
