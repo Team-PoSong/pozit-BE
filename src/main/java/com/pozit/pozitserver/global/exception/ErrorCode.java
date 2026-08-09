@@ -51,6 +51,7 @@ public enum ErrorCode {
     POZING_EDIT_JOB_ALREADY_EXISTS(HttpStatus.CONFLICT, "POZING409_1", "이미 처리 중인 포징 편집 작업이 있습니다."),
     POZING_EDIT_JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "POZING404_1", "포징 편집 작업을 찾을 수 없습니다."),
     POZING_EDIT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "POZING500_1", "포징 영상 편집에 실패했습니다."),
+    POZING_THUMBNAIL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "POZING500_2", "포징 썸네일 생성에 실패했습니다."),
 
     // Like
     ALREADY_LIKED(HttpStatus.BAD_REQUEST, "LIKE400_1", "이미 찜한 여행입니다."),

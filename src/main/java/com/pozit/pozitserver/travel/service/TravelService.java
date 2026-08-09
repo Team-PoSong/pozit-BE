@@ -65,6 +65,7 @@ public class TravelService {
     private static final Duration BACKGROUND_IMAGE_PRESIGNED_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final Duration BACKGROUND_IMAGE_GET_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final Duration POZING_GET_URL_EXPIRATION = Duration.ofMinutes(10);
+    private static final Duration THUMBNAIL_GET_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final String BACKGROUND_IMAGE_CONTENT_TYPE = "image/jpeg";
 
     private final TravelRepository travelRepository;
@@ -530,7 +531,7 @@ public class TravelService {
                                     p.getId(),
                                     p.getUser().getNickname(),
                                     s3Service.createGetPresignedUrl(p.getPozingObjectKey(), POZING_GET_URL_EXPIRATION),
-                                    p.getThumbnailUrl()
+                                    createThumbnailUrl(p)
                             ))
                             .toList();
 
@@ -665,7 +666,7 @@ public class TravelService {
                                     p.getUser().getId(),
                                     p.getUser().getNickname(),
                                     s3Service.createGetPresignedUrl(p.getPozingObjectKey(), POZING_GET_URL_EXPIRATION),
-                                    p.getThumbnailUrl()
+                                    createThumbnailUrl(p)
                             ))
                             .toList();
 
@@ -925,6 +926,7 @@ public class TravelService {
         List<PozingEditJob> editJobs = pozingEditJobRepository.findByTravel(travel);
 
         List<String> objectKeysToDelete = new ArrayList<>(pozings.stream().map(Pozing::getPozingObjectKey).toList());
+        pozings.stream().map(Pozing::getThumbnailObjectKey).filter(Objects::nonNull).forEach(objectKeysToDelete::add);
         editJobs.stream().map(PozingEditJob::getResultS3Key).filter(Objects::nonNull).forEach(objectKeysToDelete::add);
         String backgroundImageKey = travel.getBackgroundImageUrl();
 
@@ -965,6 +967,14 @@ public class TravelService {
                 }
             }
         });
+    }
+
+    private String createThumbnailUrl(Pozing pozing) {
+        if (pozing.getThumbnailObjectKey() == null) {
+            return null;
+        }
+
+        return s3Service.createGetPresignedUrl(pozing.getThumbnailObjectKey(), THUMBNAIL_GET_URL_EXPIRATION);
     }
 
     /**

@@ -4,17 +4,28 @@ import com.pozit.pozitserver.course.domain.CourseSpot;
 import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.travel.domain.Travel;
 import com.pozit.pozitserver.user.domain.User;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface PozingRepository extends JpaRepository<Pozing, Long> {
 
     List<Pozing> findByCourseSpotIn(List<CourseSpot> courseSpots);
 
     List<Pozing> findByUser(User user);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select p
+            from Pozing p
+            where p.id = :id
+            """)
+    Optional<Pozing> findByIdForUpdate(@Param("id") Long id);
 
     long countByCourseSpot_Course_Travel(Travel travel);
 

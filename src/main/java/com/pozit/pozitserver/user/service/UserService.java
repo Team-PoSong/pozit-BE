@@ -26,7 +26,9 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -128,6 +130,10 @@ public class UserService {
         List<String> pozingObjectKeys = pozings.stream()
                 .map(Pozing::getPozingObjectKey)
                 .toList();
+        List<String> thumbnailObjectKeys = pozings.stream()
+                .map(Pozing::getThumbnailObjectKey)
+                .filter(Objects::nonNull)
+                .toList();
 
         pozingRepository.deleteAll(pozings);
         likeRepository.deleteByUser(user);
@@ -137,7 +143,7 @@ public class UserService {
         user.withdraw();
         userRepository.saveAndFlush(user);
 
-        deletePozingObjectsAfterCommit(pozingObjectKeys);
+        deletePozingObjectsAfterCommit(pozingObjectKeys, thumbnailObjectKeys);
     }
 
     private void revokeAppleAuthorizationIfNeeded(
@@ -158,15 +164,21 @@ public class UserService {
         );
     }
 
-    private void deletePozingObjectsAfterCommit(List<String> pozingObjectKeys) {
-        if (pozingObjectKeys.isEmpty()) {
+    private void deletePozingObjectsAfterCommit(
+            List<String> pozingObjectKeys,
+            List<String> thumbnailObjectKeys
+    ) {
+        if (pozingObjectKeys.isEmpty() && thumbnailObjectKeys.isEmpty()) {
             return;
         }
 
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                pozingObjectKeys.forEach(objectKey -> {
+                List<String> objectKeys = new ArrayList<>(pozingObjectKeys);
+                objectKeys.addAll(thumbnailObjectKeys);
+
+                objectKeys.forEach(objectKey -> {
                     try {
                         s3Service.delete(objectKey);
                     } catch (Exception e) {
