@@ -35,7 +35,7 @@ public class PozingController {
     }
 
     @PostMapping("/save")
-    @Operation(summary = "업로드 완료된 포징 저장", description = "S3 업로드 완료 후 uploadId로 업로드 세션을 확정해 Pozing 엔티티로 저장합니다.")
+    @Operation(summary = "업로드 완료된 포징 저장", description = "S3 업로드 완료 후 presigned URL 발급 응답의 objectKey를 전달해 Pozing 엔티티로 저장합니다.")
     public SuccessResponse<PozingSaveResponse> savePozing(
             @CurrentUser User user,
             @Valid @RequestBody PozingSaveRequest request

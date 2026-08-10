@@ -74,7 +74,6 @@ public class PozingService {
                 UUID.randomUUID()
         );
 
-        String uploadId = UUID.randomUUID().toString();
         var presignedUrl = s3Service.createPutPresignedUrl(
                 key,
                 POZING_VIDEO_CONTENT_TYPE,
@@ -83,7 +82,7 @@ public class PozingService {
 
         return new PozingPresignedUrlResponse(
                 presignedUrl.presignedUrl(),
-                uploadId
+                key
         );
     }
 
