@@ -54,7 +54,7 @@ public class TravelMember {
         this.role = role;
     }
 
-    public void updateRole(TravelMemberRole role) {
+    public void changeRole(TravelMemberRole role) {
         this.role = role;
     }
 }

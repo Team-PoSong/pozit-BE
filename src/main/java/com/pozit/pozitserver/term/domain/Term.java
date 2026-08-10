@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -31,6 +32,9 @@ public class Term {
     @Column(nullable = false)
     private String version;
 
+    @Column(name = "effective_date", nullable = false)
+    private LocalDate effectiveDate;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -40,10 +44,11 @@ public class Term {
     }
 
     @Builder
-    private Term(TermType type, String title, String content, String version) {
+    private Term(TermType type, String title, String content, String version, LocalDate effectiveDate) {
         this.type = type;
         this.title = title;
         this.content = content;
         this.version = version;
+        this.effectiveDate = effectiveDate;
     }
 }

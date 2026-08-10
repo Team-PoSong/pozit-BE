@@ -33,6 +33,10 @@ public interface TravelMemberRepository extends JpaRepository<TravelMember, Long
 
     Optional<TravelMember> findByTravelAndUser(Travel travel, User user);
 
+    Optional<TravelMember> findByTravel_IdAndUser_Id(Long travelId, Long userId);
+
+    Optional<TravelMember> findFirstByTravelAndUserNotOrderByJoinedAtAscIdAsc(Travel travel, User user);
+
     boolean existsByTravelAndUser(Travel travel, User user);
 
     void deleteByUser(User user);

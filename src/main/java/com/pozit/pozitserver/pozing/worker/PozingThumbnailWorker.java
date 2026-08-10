@@ -9,8 +9,8 @@ import org.springframework.data.redis.RedisSystemException;
 import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.ReadOffset;
-import org.springframework.data.redis.connection.stream.StreamReadOptions;
 import org.springframework.data.redis.connection.stream.StreamOffset;
+import org.springframework.data.redis.connection.stream.StreamReadOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,14 +23,14 @@ import java.util.Objects;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "pozing.edit.worker.enabled", havingValue = "true")
-public class PozingEditWorker {
+@ConditionalOnProperty(name = "pozing.thumbnail.worker.enabled", havingValue = "true")
+public class PozingThumbnailWorker {
 
-    private static final String GROUP_NAME = "pozing-edit-workers";
-    private static final String CONSUMER_NAME = "pozing-edit-worker-1";
+    private static final String GROUP_NAME = "pozing-thumbnail-workers";
+    private static final String CONSUMER_NAME = "pozing-thumbnail-worker-1";
 
     private final StringRedisTemplate stringRedisTemplate;
-    private final PozingEditJobProcessor pozingEditJobProcessor;
+    private final PozingThumbnailJobProcessor pozingThumbnailJobProcessor;
 
     @PostConstruct
     public void initializeConsumerGroup() {
@@ -41,7 +41,7 @@ public class PozingEditWorker {
                     """, Void.class);
             stringRedisTemplate.execute(
                     createGroupScript,
-                    List.of(PozingEditQueuePublisher.STREAM_KEY),
+                    List.of(PozingThumbnailQueuePublisher.STREAM_KEY),
                     GROUP_NAME
             );
         } catch (RedisSystemException | InvalidDataAccessApiUsageException e) {
@@ -51,7 +51,7 @@ public class PozingEditWorker {
         }
     }
 
-    @Scheduled(fixedDelayString = "${pozing.edit.worker.fixed-delay-ms:1000}")
+    @Scheduled(fixedDelayString = "${pozing.thumbnail.worker.fixed-delay-ms:1000}")
     public void consumeOne() {
         List<MapRecord<String, Object, Object>> records = readRecords();
 
@@ -61,25 +61,25 @@ public class PozingEditWorker {
 
         for (MapRecord<String, Object, Object> record : records) {
             try {
-                Long jobId = extractJobId(record);
-                pozingEditJobProcessor.process(jobId);
+                Long pozingId = extractPozingId(record);
+                pozingThumbnailJobProcessor.process(pozingId);
             } catch (NumberFormatException e) {
-                log.error("Invalid jobId in pozing edit record. recordId={}", record.getId(), e);
-            } catch(Exception e){
-                log.error("Failed to process pozing edit job. recordId={}", record.getId(), e);
-                Long jobId = extractJobIdSafely(record);
+                log.error("Invalid pozingId in pozing thumbnail record. recordId={}", record.getId(), e);
+            } catch (Exception e) {
+                log.error("Failed to process pozing thumbnail job. recordId={}", record.getId(), e);
+                Long pozingId = extractPozingIdSafely(record);
 
-                if (jobId != null) {
+                if (pozingId != null) {
                     try {
-                        pozingEditJobProcessor.markJobFailedInNewTransaction(jobId, e.getMessage());
+                        pozingThumbnailJobProcessor.markJobFailedInNewTransaction(pozingId);
                     } catch (Exception failException) {
-                        log.error("Failed to mark pozing edit job as failed. jobId={}", jobId, failException);
+                        log.error("Failed to mark pozing thumbnail job as failed. pozingId={}", pozingId, failException);
                     }
                 }
             }
 
             stringRedisTemplate.opsForStream().acknowledge(
-                    PozingEditQueuePublisher.STREAM_KEY,
+                    PozingThumbnailQueuePublisher.STREAM_KEY,
                     GROUP_NAME,
                     record.getId()
             );
@@ -91,7 +91,7 @@ public class PozingEditWorker {
             return stringRedisTemplate.opsForStream().read(
                     Consumer.from(GROUP_NAME, CONSUMER_NAME),
                     StreamReadOptions.empty().count(1).block(Duration.ofSeconds(1)),
-                    StreamOffset.create(PozingEditQueuePublisher.STREAM_KEY, ReadOffset.lastConsumed())
+                    StreamOffset.create(PozingThumbnailQueuePublisher.STREAM_KEY, ReadOffset.lastConsumed())
             );
         } catch (RedisSystemException e) {
             if (Objects.toString(e.getMostSpecificCause().getMessage(), "").contains("NOGROUP")) {
@@ -102,33 +102,22 @@ public class PozingEditWorker {
         }
     }
 
-    private Long extractJobId(MapRecord<String, Object, Object> record) {
-        Object jobId = record.getValue().get(PozingEditQueuePublisher.JOB_ID_FIELD);
+    private Long extractPozingId(MapRecord<String, Object, Object> record) {
+        Object pozingId = record.getValue().get(PozingThumbnailQueuePublisher.POZING_ID_FIELD);
 
-        if (jobId == null) {
-            throw new NumberFormatException("Missing jobId field.");
+        if (pozingId == null) {
+            throw new NumberFormatException("Missing pozingId field.");
         }
 
-        return Long.valueOf(jobId.toString());
+        return Long.valueOf(pozingId.toString());
     }
 
-    private Long extractJobIdSafely(MapRecord<String, Object, Object> record) {
+    private Long extractPozingIdSafely(MapRecord<String, Object, Object> record) {
         try {
-            return extractJobId(record);
+            return extractPozingId(record);
         } catch (NumberFormatException e) {
-            log.error("Invalid jobId in pozing edit record. recordId={}", record.getId(), e);
+            log.error("Invalid pozingId in pozing thumbnail record. recordId={}", record.getId(), e);
             return null;
         }
-    }
-
-    private boolean containsRedisError(Throwable throwable, String errorCode) {
-        Throwable current = throwable;
-        while (current != null) {
-            if (Objects.toString(current.getMessage(), "").contains(errorCode)) {
-                return true;
-            }
-            current = current.getCause();
-        }
-        return false;
     }
 }

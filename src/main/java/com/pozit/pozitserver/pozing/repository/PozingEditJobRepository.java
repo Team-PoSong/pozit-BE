@@ -19,6 +19,8 @@ public interface PozingEditJobRepository extends JpaRepository<PozingEditJob, Lo
 
     boolean existsByTravelAndStatusIn(Travel travel, Collection<PozingEditJobStatus> statuses);
 
+    List<PozingEditJob> findByTravel(Travel travel);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select j

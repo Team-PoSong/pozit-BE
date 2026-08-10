@@ -53,7 +53,7 @@ public class AuthAppleService {
             user = createUser(socialId, nickname);
         }
 
-        return authTokenService.issueLoginTokens(user, request.deviceId(), isNewUser);
+        return authTokenService.issueLoginTokens(user, isNewUser);
     }
 
     private User createUser(String socialId, String nickname) {
