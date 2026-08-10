@@ -29,6 +29,8 @@ public interface PozingRepository extends JpaRepository<Pozing, Long> {
 
     long countByCourseSpot_Course_Travel(Travel travel);
 
+    boolean existsByThumbnailObjectKey(String thumbnailObjectKey);
+
     @Query("""
             select count(distinct p.user.id)
             from Pozing p

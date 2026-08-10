@@ -7,6 +7,7 @@ import com.pozit.pozitserver.pozing.dto.response.PozingEditJobCreateResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingEditJobStatusResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingPresignedUrlResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingSaveResponse;
+import com.pozit.pozitserver.pozing.dto.response.PozingThumbnailStatusResponse;
 import com.pozit.pozitserver.pozing.service.PozingService;
 import com.pozit.pozitserver.user.domain.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,7 +36,7 @@ public class PozingController {
     }
 
     @PostMapping("/save")
-    @Operation(summary = "업로드 완료된 포징 저장", description = "S3 업로드 완료 후 uploadId로 업로드 세션을 확정해 Pozing 엔티티로 저장합니다.")
+    @Operation(summary = "업로드 완료된 포징 저장", description = "S3 업로드 완료 후 presigned URL 발급 응답의 objectKey를 전달해 Pozing 엔티티로 저장합니다.")
     public SuccessResponse<PozingSaveResponse> savePozing(
             @CurrentUser User user,
             @Valid @RequestBody PozingSaveRequest request
@@ -60,6 +61,15 @@ public class PozingController {
             @PathVariable Long jobId
     ) {
         return SuccessResponse.ok(pozingService.getEditPozingJob(user, jobId));
+    }
+
+    @GetMapping("/{pozingId}/thumbnail")
+    @Operation(summary = "포징 썸네일 생성 상태 조회", description = "포징 썸네일 생성 상태를 조회합니다. 완료 상태이면 임시 S3 썸네일 URL을 함께 반환합니다.")
+    public SuccessResponse<PozingThumbnailStatusResponse> getThumbnailStatus(
+            @CurrentUser User user,
+            @Parameter(description = "포징 ID") @PathVariable Long pozingId
+    ) {
+        return SuccessResponse.ok(pozingService.getThumbnailStatus(user, pozingId));
     }
 
 }
