@@ -9,11 +9,13 @@ import com.pozit.pozitserver.global.s3.S3Service;
 import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.pozing.domain.PozingEditJob;
 import com.pozit.pozitserver.pozing.domain.PozingEditJobStatus;
+import com.pozit.pozitserver.pozing.domain.PozingThumbnailStatus;
 import com.pozit.pozitserver.pozing.dto.request.PozingSaveRequest;
 import com.pozit.pozitserver.pozing.dto.response.PozingEditJobCreateResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingEditJobStatusResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingPresignedUrlResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingSaveResponse;
+import com.pozit.pozitserver.pozing.dto.response.PozingThumbnailStatusResponse;
 import com.pozit.pozitserver.pozing.repository.PozingEditJobRepository;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
 import com.pozit.pozitserver.pozing.worker.PozingEditS3Storage;
@@ -172,6 +174,19 @@ public class PozingService {
         );
     }
 
+    public PozingThumbnailStatusResponse getThumbnailStatus(User user, Long pozingId) {
+        Pozing pozing = pozingRepository.findById(pozingId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMON404));
+
+        validateMember(pozing.getCourseSpot(), user);
+
+        return new PozingThumbnailStatusResponse(
+                pozing.getId(),
+                pozing.getThumbnailStatus(),
+                createThumbnailUrl(pozing)
+        );
+    }
+
     private void validateMember(CourseSpot courseSpot, User user) {
         validateMember(courseSpot.getCourse().getTravel(), user);
     }
@@ -217,8 +232,29 @@ public class PozingService {
                     pozingThumbnailQueuePublisher.publish(pozingId);
                 }catch(Exception e){
                     log.error("Failed to publish pozing thumbnail job. PozingId={}", pozingId, e);
+                    try {
+                        markThumbnailFailedInNewTransaction(pozingId);
+                    } catch (Exception failException) {
+                        log.error("Failed to mark pozing thumbnail as failed. PozingId={}", pozingId, failException);
+                    }
                 }
             }
+        });
+    }
+
+    private void markThumbnailFailedInNewTransaction(Long pozingId) {
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
+        transactionTemplate.executeWithoutResult(status -> {
+            Pozing pozing = pozingRepository.findByIdForUpdate(pozingId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.COMMON404));
+
+            if (pozing.getThumbnailStatus() == PozingThumbnailStatus.COMPLETED) {
+                return;
+            }
+
+            pozing.failThumbnail();
         });
     }
 
