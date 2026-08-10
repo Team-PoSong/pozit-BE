@@ -17,13 +17,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.transaction.support.TransactionTemplate;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -100,41 +93,8 @@ public class UserService {
 
         revokeAppleAuthorizationIfNeeded(user, request);
 
-        withdrawInTransaction(user);
-    }
-
-    private void withdrawInTransaction(User user) {
-        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
-        transactionTemplate.executeWithoutResult(status -> {
-            User persistedUser = userRepository.findById(user.getId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.COMMON401));
-            if (persistedUser.isDeleted()) {
-                throw new BusinessException(ErrorCode.COMMON401);
-            }
-
-            deleteUserData(persistedUser);
-        });
-    }
-
-    private void deleteUserData(User user) {
-        List<Pozing> pozings = pozingRepository.findByUser(user);
-        List<String> pozingObjectKeys = pozings.stream()
-                .map(Pozing::getPozingObjectKey)
-                .toList();
-        List<String> thumbnailObjectKeys = pozings.stream()
-                .map(Pozing::getThumbnailObjectKey)
-                .filter(Objects::nonNull)
-                .toList();
-
-        pozingRepository.deleteAll(pozings);
-        likeRepository.deleteByUser(user);
-        feedbackRepository.deleteByUser(user);
-
         authTokenService.logoutAllDevices(user.getId());
-        user.withdraw();
-        userRepository.saveAndFlush(user);
-
-        deletePozingObjectsAfterCommit(pozingObjectKeys, thumbnailObjectKeys);
+        withdrawalAccountService.completeWithdrawal(user);
     }
 
     private void revokeAppleAuthorizationIfNeeded(
@@ -155,28 +115,4 @@ public class UserService {
         );
     }
 
-    private void deletePozingObjectsAfterCommit(
-            List<String> pozingObjectKeys,
-            List<String> thumbnailObjectKeys
-    ) {
-        if (pozingObjectKeys.isEmpty() && thumbnailObjectKeys.isEmpty()) {
-            return;
-        }
-
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                List<String> objectKeys = new ArrayList<>(pozingObjectKeys);
-                objectKeys.addAll(thumbnailObjectKeys);
-
-                objectKeys.forEach(objectKey -> {
-                    try {
-                        s3Service.delete(objectKey);
-                    } catch (Exception e) {
-                        log.error("Failed to delete withdrawn user's pozing object. objectKey={}", objectKey, e);
-                    }
-                });
-            }
-        });
-    }
 }

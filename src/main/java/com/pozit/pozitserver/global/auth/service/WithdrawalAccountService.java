@@ -27,6 +27,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -73,8 +74,8 @@ public class WithdrawalAccountService {
             }
 
             TravelMember nextLeader = otherMembers.get(0);
-            nextLeader.updateRole(TravelMemberRole.LEADER);
-            travel.updateLeader(nextLeader.getUser());
+            nextLeader.changeRole(TravelMemberRole.LEADER);
+            travel.transferLeader(nextLeader.getUser());
         }
     }
 
@@ -89,6 +90,10 @@ public class WithdrawalAccountService {
 
         objectKeysToDelete.addAll(pozings.stream()
                 .map(Pozing::getPozingObjectKey)
+                .toList());
+        objectKeysToDelete.addAll(pozings.stream()
+                .map(Pozing::getThumbnailObjectKey)
+                .filter(Objects::nonNull)
                 .toList());
 
         if (!pozings.isEmpty()) {
@@ -111,6 +116,10 @@ public class WithdrawalAccountService {
         List<Pozing> pozings = pozingRepository.findByUser(user);
         objectKeysToDelete.addAll(pozings.stream()
                 .map(Pozing::getPozingObjectKey)
+                .toList());
+        objectKeysToDelete.addAll(pozings.stream()
+                .map(Pozing::getThumbnailObjectKey)
+                .filter(Objects::nonNull)
                 .toList());
 
         pozingRepository.deleteAll(pozings);
