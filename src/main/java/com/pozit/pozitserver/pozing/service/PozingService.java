@@ -185,6 +185,7 @@ public class PozingService {
                 pozing.getThumbnailStatus(),
                 createThumbnailUrl(pozing)
         );
+
     }
 
     private void validateMember(CourseSpot courseSpot, User user) {
@@ -203,7 +204,7 @@ public class PozingService {
     }
 
     private String createThumbnailUrl(Pozing pozing) {
-        if (pozing.getThumbnailObjectKey() == null) {
+        if (pozing.getThumbnailStatus() != PozingThumbnailStatus.COMPLETED || pozing.getThumbnailObjectKey() == null) {
             return null;
         }
 
