@@ -18,6 +18,7 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
 
     void deleteByUser(User user);
 
+
     void deleteByTravel(Travel travel);
 
     long countByTravel(Travel travel);

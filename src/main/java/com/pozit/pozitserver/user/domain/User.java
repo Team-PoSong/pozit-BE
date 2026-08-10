@@ -46,6 +46,10 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30, columnDefinition = "varchar(30) default 'ACTIVE'")
+    private UserStatus status = UserStatus.ACTIVE;
+
     @Column(name = "push_enabled", nullable = false)
     private Boolean pushEnabled = true;
 
@@ -107,13 +111,14 @@ public class User {
     }
 
     public boolean isDeleted() {
-        return deletedAt != null;
+        return status == UserStatus.WITHDRAWN || deletedAt != null;
     }
 
-    public void withdraw() {
+    public void anonymizeAfterWithdrawal() {
         String suffix = id + ":" + UUID.randomUUID();
         this.socialId = "deleted:" + suffix;
         this.nickname = "탈퇴한 사용자_" + id;
+        this.status = UserStatus.WITHDRAWN;
         this.deletedAt = LocalDateTime.now();
         this.pushEnabled = false;
         this.notiTravelEnabled = false;

@@ -120,4 +120,15 @@ public class PozingEditWorker {
             return null;
         }
     }
+
+    private boolean containsRedisError(Throwable throwable, String errorCode) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (Objects.toString(current.getMessage(), "").contains(errorCode)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
 }

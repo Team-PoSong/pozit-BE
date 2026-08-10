@@ -1,14 +1,10 @@
 package com.pozit.pozitserver.user.service;
 
 import com.pozit.pozitserver.global.auth.service.AuthTokenService;
+import com.pozit.pozitserver.global.auth.service.WithdrawalAccountService;
 import com.pozit.pozitserver.global.auth.apple.AppleClient;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
-import com.pozit.pozitserver.global.s3.S3Service;
-import com.pozit.pozitserver.like.repository.LikeRepository;
-import com.pozit.pozitserver.pozing.domain.Pozing;
-import com.pozit.pozitserver.pozing.repository.PozingRepository;
-import com.pozit.pozitserver.support.repository.FeedbackRepository;
 import com.pozit.pozitserver.user.domain.SocialProvider;
 import com.pozit.pozitserver.user.domain.User;
 import com.pozit.pozitserver.user.dto.request.NotificationSettingRequest;
@@ -20,7 +16,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -40,11 +35,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final AuthTokenService authTokenService;
     private final AppleClient appleClient;
-    private final LikeRepository likeRepository;
-    private final FeedbackRepository feedbackRepository;
-    private final PozingRepository pozingRepository;
-    private final S3Service s3Service;
-    private final PlatformTransactionManager transactionManager;
+    private final WithdrawalAccountService withdrawalAccountService;
 
     @Transactional(readOnly = true)
     public UserInfoResponse getMyInfo(User user) {
