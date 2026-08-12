@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -42,7 +43,7 @@ public class SupportService {
     }
 
     private TermResponse getLatestTerm(TermType type) {
-        Term term = termRepository.findTopByTypeOrderByCreatedAtDesc(type)
+        Term term = termRepository.findTopByTypeAndEffectiveDateLessThanEqualOrderByEffectiveDateDescCreatedAtDesc(type, LocalDate.now())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TERM_NOT_FOUND));
         return new TermResponse(
                 term.getTitle(),
