@@ -23,4 +23,9 @@ public class TestController {
     public SuccessResponse<SampleResponseDto> test(){
         return SuccessResponse.ok(testService.getSample());
     }
+
+    @GetMapping("/test/error")
+    public void testError() {
+        throw new RuntimeException("Discord webhook test error");
+    }
 }
