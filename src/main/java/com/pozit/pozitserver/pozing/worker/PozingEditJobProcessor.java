@@ -4,6 +4,8 @@ import com.pozit.pozitserver.course.domain.CourseSpot;
 import com.pozit.pozitserver.course.repository.CourseSpotRepository;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
+import com.pozit.pozitserver.notification.domain.NotificationType;
+import com.pozit.pozitserver.notification.service.NotificationService;
 import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.pozing.domain.PozingEditJob;
 import com.pozit.pozitserver.pozing.domain.PozingEditJobStatus;
@@ -36,6 +38,7 @@ public class PozingEditJobProcessor {
     private final PozingEditS3Storage pozingEditS3Storage;
     private final FfmpegPozingEditor ffmpegPozingEditor;
     private final TransactionTemplate transactionTemplate;
+    private final NotificationService notificationService;
 
     @Value("${pozing.edit.result-expiration-minutes:10}")
     private long resultExpirationMinutes;
@@ -155,6 +158,16 @@ public class PozingEditJobProcessor {
                     .orElseThrow(() -> new BusinessException(ErrorCode.POZING_EDIT_JOB_NOT_FOUND));
 
             job.complete(resultS3Key, LocalDateTime.now().plusMinutes(resultExpirationMinutes));
+
+            List<TravelMember> members = travelMemberRepository.findByTravel(job.getTravel());
+            for (TravelMember member : members) {
+                notificationService.createNotification(
+                        member.getUser(),
+                        job.getTravel(),
+                        NotificationType.TIMELAPSE,
+                        "여행 로그가 생성되었습니다."
+                );
+            }
         });
     }
 

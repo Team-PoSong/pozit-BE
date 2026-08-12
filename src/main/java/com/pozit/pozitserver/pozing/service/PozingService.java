@@ -1,11 +1,14 @@
 package com.pozit.pozitserver.pozing.service;
 
+import com.pozit.pozitserver.course.domain.Course;
 import com.pozit.pozitserver.course.domain.CourseSpot;
 import com.pozit.pozitserver.course.domain.CourseSpotStatus;
 import com.pozit.pozitserver.course.repository.CourseSpotRepository;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
 import com.pozit.pozitserver.global.s3.S3Service;
+import com.pozit.pozitserver.notification.domain.NotificationType;
+import com.pozit.pozitserver.notification.service.NotificationService;
 import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.pozing.domain.PozingEditJob;
 import com.pozit.pozitserver.pozing.domain.PozingEditJobStatus;
@@ -22,6 +25,7 @@ import com.pozit.pozitserver.pozing.worker.PozingEditS3Storage;
 import com.pozit.pozitserver.pozing.worker.PozingEditQueuePublisher;
 import com.pozit.pozitserver.pozing.worker.PozingThumbnailQueuePublisher;
 import com.pozit.pozitserver.travel.domain.Travel;
+import com.pozit.pozitserver.travel.domain.TravelMember;
 import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
 import com.pozit.pozitserver.user.domain.User;
@@ -60,6 +64,7 @@ public class PozingService {
     private final PozingEditS3Storage pozingEditS3Storage;
     private final PozingThumbnailQueuePublisher pozingThumbnailQueuePublisher;
     private final PlatformTransactionManager transactionManager;
+    private final NotificationService notificationService;
 
     /**
      * 타임랩스 저장용 presigned url 발급
@@ -106,6 +111,8 @@ public class PozingService {
             throw new BusinessException(ErrorCode.POZING_UPLOAD_OBJECT_NOT_FOUND);
         }
 
+        long savedUserCountBeforeSave = pozingRepository.countDistinctUserByCourseSpot(courseSpot);
+
         Pozing pozing = pozingRepository.save(
                 Pozing.builder()
                         .courseSpot(courseSpot)
@@ -113,6 +120,11 @@ public class PozingService {
                         .pozingObjectKey(request.objectKey())
                         .build()
         );
+
+        // 이 장소에 처음 등록된 포징이면 나머지 멤버에게 촬영 유도 알림
+        if (savedUserCountBeforeSave == 0) {
+            notifyOthersToCapture(courseSpot, user);
+        }
 
         //모든 멤버들이 포징 업데이트 완료 시 VISITED로 상태 변경
         updateCourseSpotStatusIfAllMembersSaved(courseSpot);
@@ -275,7 +287,21 @@ public class PozingService {
         });
     }
 
+    private void notifyOthersToCapture(CourseSpot courseSpot, User registeredUser) {
+        Travel travel = courseSpot.getCourse().getTravel();
+        List<TravelMember> members = travelMemberRepository.findByTravel(travel);
 
+        for (TravelMember member : members) {
+            if (!member.getUser().getId().equals(registeredUser.getId())) {
+                notificationService.createNotification(
+                        member.getUser(),
+                        travel,
+                        NotificationType.TRAVEL_LOG,
+                        "지금 로그를 촬영해볼까요?"
+                );
+            }
+        }
+    }
 
     private void updateCourseSpotStatusIfAllMembersSaved(CourseSpot courseSpot) {
         long memberCount = travelMemberRepository.countByTravel(
@@ -285,6 +311,28 @@ public class PozingService {
 
         if (memberCount > 0 && savedUserCount >= memberCount) {
             courseSpot.updateStatus(CourseSpotStatus.VISITED);
+            notifyCourseCompletedIfAllSpotsVisited(courseSpot);
+        }
+    }
+
+    private void notifyCourseCompletedIfAllSpotsVisited(CourseSpot courseSpot) {
+        Course course = courseSpot.getCourse();
+        List<CourseSpot> spots = courseSpotRepository.findByCourseOrderByOrderIndexAsc(course);
+
+        boolean allVisited = spots.stream().allMatch(s -> s.getStatus() == CourseSpotStatus.VISITED);
+        if (!allVisited) {
+            return;
+        }
+
+        Travel travel = course.getTravel();
+        List<TravelMember> members = travelMemberRepository.findByTravel(travel);
+        for (TravelMember member : members) {
+            notificationService.createNotification(
+                    member.getUser(),
+                    travel,
+                    NotificationType.COURSE,
+                    "오늘의 코스를 모두 완료했습니다."
+            );
         }
     }
 }

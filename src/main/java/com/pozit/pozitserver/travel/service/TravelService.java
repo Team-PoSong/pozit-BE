@@ -10,6 +10,8 @@ import com.pozit.pozitserver.global.exception.ErrorCode;
 import com.pozit.pozitserver.global.s3.S3Service;
 import com.pozit.pozitserver.global.util.RandomUtil;
 import com.pozit.pozitserver.like.repository.LikeRepository;
+import com.pozit.pozitserver.notification.domain.NotificationType;
+import com.pozit.pozitserver.notification.service.NotificationService;
 import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.pozing.domain.PozingEditJob;
 import com.pozit.pozitserver.pozing.domain.PozingEditJobStatus;
@@ -78,6 +80,7 @@ public class TravelService {
     private final PozingEditJobRepository pozingEditJobRepository;
     private final LikeRepository likeRepository;
     private final S3Service s3Service;
+    private final NotificationService notificationService;
 
 
     /**
@@ -205,6 +208,14 @@ public class TravelService {
             throw new BusinessException(ErrorCode.CANNOT_JOIN_FINISHED_TRAVEL);
         }
 
+        List<TravelMember> existingMembers = travelMemberRepository.findByTravel(travel);
+
+        boolean alreadyJoined = existingMembers.stream()
+                .anyMatch(member -> member.getUser().getId().equals(user.getId()));
+        if (alreadyJoined) {
+            throw new BusinessException(ErrorCode.ALREADY_JOINED_TRAVEL);
+        }
+
         TravelMember travelMember=TravelMember.builder()
                 .travel(travel)
                 .user(user)
@@ -212,6 +223,16 @@ public class TravelService {
                 .build();
 
         travelMemberRepository.save(travelMember);
+
+        for (TravelMember existingMember : existingMembers) {
+            notificationService.createNotification(
+                    existingMember.getUser(),
+                    travel,
+                    NotificationType.TRAVEL_JOIN,
+                    user.getNickname() + "님이 여행에 참가했습니다."
+            );
+        }
+
         return JoinResponse.from(travel,travelMember);
     }
 
@@ -936,6 +957,7 @@ public class TravelService {
         courseRepository.deleteAllInBatch(courses);
         travelTagRepository.deleteAllInBatch(travelTagRepository.findByTravel(travel));
         likeRepository.deleteByTravel(travel);
+        notificationService.deleteByTravel(travel);
         travelMemberRepository.deleteAllInBatch(travelMemberRepository.findByTravel(travel));
         travelRepository.delete(travel);
 
