@@ -38,7 +38,7 @@ public class TermAgreement {
     @Column(name = "agreed_version")
     private String agreedVersion;
 
-    @Column(name = "agreed_at", nullable = false)
+    @Column(name = "agreed_at")
     private LocalDateTime agreedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -57,7 +57,7 @@ public class TermAgreement {
 
     public void update(boolean agreed, String agreedVersion) {
         this.agreed = agreed;
-        this.agreedVersion = agreedVersion;
-        this.agreedAt = LocalDateTime.now();
+        this.agreedVersion = agreed ? agreedVersion : null;
+        this.agreedAt = agreed ? LocalDateTime.now() : null;
     }
 }

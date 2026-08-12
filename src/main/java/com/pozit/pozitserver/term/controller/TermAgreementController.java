@@ -31,24 +31,22 @@ public class TermAgreementController {
             summary = "약관 동의 저장",
             description = """
                     약관 종류(termType)별 동의 여부를 목록으로 받아 저장합니다.
-                    약관 종류/필수 여부가 아직 확정 전이라 termType은 자유 문자열이며, 필수 항목 검증은 현재 서버에서 강제하지 않습니다.
+                    약관 종류/필수 여부가 아직 기획 확정 전이라 termType은 자유 문자열이지만, 더미데이터 기준 SERVICE, PRIVACY, LOCATION, AGE_OVER_14는 필수항목입니다.
+                    예: { "agreements": [ {"termType":"SERVICE","agreed":true}, {"termType":"PRIVACY","agreed":true}, {"termType":"LOCATION","agreed":true}, {"termType":"AGE_OVER_14","agreed":true} ] }
                     """
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "저장 성공"),
             @ApiResponse(
                     responseCode = "400",
-                    description = "요청 형식 오류 (termType 누락, agreed 누락 등)",
+                    description = "필수 약관 미동의 또는 요청 형식 오류",
                     content = @Content(
                             schema = @Schema(implementation = ErrorResponse.class),
                             examples = @ExampleObject(value = """
                                     {
                                       "isSuccess": false,
-                                      "code": "COMMON400",
-                                      "message": "입력값 검증에 실패했습니다.",
-                                      "errors": {
-                                        "agreements[0].termType": "약관 종류는 필수입니다."
-                                      }
+                                      "code": "TERM400_1",
+                                      "message": "필수 약관에 모두 동의해야 합니다."
                                     }
                                     """)
                     )
