@@ -40,13 +40,12 @@ public class AuthTokenService {
 
     public LoginTokenResponse issueLoginTokens(
             User user,
-            String deviceId,
             boolean isNewUser
     ) {
         String accessToken = jwtTokenProvider.createAccessToken(user);
         String refreshToken = jwtTokenProvider.createRefreshToken(user);
 
-        saveRefreshToken(user.getId(), deviceId, refreshToken);
+        saveRefreshToken(user.getId(), refreshToken);
 
         return LoginTokenResponse.of(
                 accessToken,
@@ -59,30 +58,26 @@ public class AuthTokenService {
     }
 
     public LoginTokenResponse reissue(
-            String refreshToken,
-            String deviceId
+            String refreshToken
     ) {
-        Long userId = validateStoredRefreshToken(refreshToken, deviceId);
+        Long userId = validateStoredRefreshToken(refreshToken);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMON401));
 
-        return issueLoginTokens(user, deviceId, false);
+        return issueLoginTokens(user, false);
     }
 
     public void logout(
             Long userId,
-            String deviceId,
             String authorizationHeader
     ) {
         blacklistAccessToken(extractBearerToken(authorizationHeader));
-        stringRedisTemplate.delete(refreshTokenKey(userId, deviceId));
+        stringRedisTemplate.delete(refreshTokenKey(userId));
     }
 
     public void logoutAllDevices(Long userId) {
         Set<String> keys = scanRefreshTokenKeys(userId);
-        if (keys == null || keys.isEmpty()) {
-            return;
-        }
+        keys.add(refreshTokenKey(userId));
         stringRedisTemplate.delete(keys);
     }
 
@@ -142,15 +137,23 @@ public class AuthTokenService {
     }
 
     private Long validateStoredRefreshToken(
-            String refreshToken,
-            String deviceId
+            String refreshToken
     ) {
         Long userId = jwtTokenProvider.getRefreshTokenMemberId(refreshToken);
 
         String savedTokenHash =
-                stringRedisTemplate.opsForValue().get(refreshTokenKey(userId, deviceId));
+                stringRedisTemplate.opsForValue().get(refreshTokenKey(userId));
 
-        if (!Objects.equals(savedTokenHash, hash(refreshToken))) {
+        String requestTokenHash = hash(refreshToken);
+        if (Objects.equals(savedTokenHash, requestTokenHash)) {
+            return userId;
+        }
+
+        boolean matchesLegacyKey = scanRefreshTokenKeys(userId).stream()
+                .map(key -> stringRedisTemplate.opsForValue().get(key))
+                .anyMatch(tokenHash -> Objects.equals(tokenHash, requestTokenHash));
+
+        if (!matchesLegacyKey) {
             throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
 
@@ -159,22 +162,18 @@ public class AuthTokenService {
 
     private void saveRefreshToken(
             Long userId,
-            String deviceId,
             String refreshToken
     ) {
         stringRedisTemplate.opsForValue().set(
-                refreshTokenKey(userId, deviceId),
+                refreshTokenKey(userId),
                 hash(refreshToken),
                 jwtTokenProvider.getRefreshTokenExpirationSeconds(),
                 TimeUnit.SECONDS
         );
     }
 
-    private String refreshTokenKey(
-            Long userId,
-            String deviceId
-    ) {
-        return REFRESH_TOKEN_KEY_PREFIX + userId + ":" + deviceId;
+    private String refreshTokenKey(Long userId) {
+        return REFRESH_TOKEN_KEY_PREFIX + userId;
     }
 
     private String refreshTokenKeyPattern(Long userId) {

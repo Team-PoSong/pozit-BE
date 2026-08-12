@@ -22,13 +22,6 @@ public record AppleIdentityTokenRequest(
         @NotNull
         ApplePlatform platform,
 
-        @Schema(
-                description = "Apple에서 발급하는 값이 아닙니다. 앱 클라이언트가 최초 실행 또는 설치 시 생성한 UUID를 secure storage 등에 저장하고, 같은 기기의 로그인/재발급/로그아웃 요청에서 동일하게 전달해야 합니다.",
-                example = "550e8400-e29b-41d4-a716-446655440000"
-        )
-        @NotBlank
-        String deviceId,
-
         @Schema(description = "Apple 최초 로그인 시 전달받은 이메일. identityToken에 이메일이 없을 때 참고용으로 사용할 수 있습니다.", example = "user@example.com")
         String email,
 

@@ -24,41 +24,59 @@ public class AuthKakaoService {
     private final KakaoClient kakaoClient;
     private final UserRepository userRepository;
     private final AuthTokenService authTokenService;
+    private final AuthNicknameService authNicknameService;
 
     public LoginTokenResponse loginWithKakao(String authorizationCode) {
         KakaoTokenResponse kakaoToken =
                 kakaoClient.requestAccessToken(authorizationCode);
 
-        return loginWithKakaoAccessToken(kakaoToken.accessToken(), "kakao-web");
+        return loginWithKakaoAccessToken(kakaoToken.accessToken());
     }
 
-    public LoginTokenResponse loginWithKakaoAccessToken(
-            String kakaoAccessToken,
-            String deviceId
-    ) {
+    public LoginTokenResponse loginWithKakaoAccessToken(String kakaoAccessToken) {
         KakaoUserResponse kakaoUser =
                 kakaoClient.requestUserInfo(kakaoAccessToken);
 
+        String socialId = kakaoUser.id().toString();
+        String nickname = kakaoUser.getNickname();
+
         Optional<User> optionalUser = userRepository.findByProviderAndSocialId(
                 SocialProvider.KAKAO,
-                kakaoUser.id().toString()
+                socialId
         );
 
-        boolean isNewUser = optionalUser.isEmpty();
-        User user = optionalUser
-                .map(existingUser -> {
-                    existingUser.updateProfile(kakaoUser.getNickname());
-                    return existingUser;
-                })
-                .orElseGet(() -> userRepository.save(
-                        User.builder()
-                                .provider(SocialProvider.KAKAO)
-                                .socialId(kakaoUser.id().toString())
-                                .nickname(kakaoUser.getNickname())
-                                .role(Role.USER)
-                                .build()
-                ));
+        boolean isNewUser = false;
+        User user;
 
-        return authTokenService.issueLoginTokens(user, deviceId, isNewUser);
+        if (optionalUser.isPresent()) {
+            user = optionalUser.get();
+            user.updateProfile(authNicknameService.resolveAvailableNickname(
+                    nickname,
+                    user.getId(),
+                    SocialProvider.KAKAO,
+                    socialId
+            ));
+        } else {
+            isNewUser = true;
+            user = createUser(socialId, nickname);
+        }
+
+        return authTokenService.issueLoginTokens(user, isNewUser);
+    }
+
+    private User createUser(String socialId, String nickname) {
+        return userRepository.save(
+                User.builder()
+                        .provider(SocialProvider.KAKAO)
+                        .socialId(socialId)
+                        .nickname(authNicknameService.resolveAvailableNickname(
+                                nickname,
+                                null,
+                                SocialProvider.KAKAO,
+                                socialId
+                        ))
+                        .role(Role.USER)
+                        .build()
+        );
     }
 }

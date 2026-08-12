@@ -31,8 +31,12 @@ public class Pozing {
     @Column(name = "pozing_object_key", nullable = false)
     private String pozingObjectKey;
 
-    @Column(name = "thumbnail_url")
-    private String thumbnailUrl;
+    @Column(name = "thumbnail_object_key")
+    private String thumbnailObjectKey;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "thumbnail_status")
+    private PozingThumbnailStatus thumbnailStatus = PozingThumbnailStatus.PENDING;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -40,13 +44,32 @@ public class Pozing {
     @PrePersist
     private void prePersist() {
         this.createdAt = LocalDateTime.now();
+        if (this.thumbnailStatus == null) {
+            this.thumbnailStatus = PozingThumbnailStatus.PENDING;
+        }
     }
 
     @Builder
-    private Pozing(CourseSpot courseSpot, User user, String pozingObjectKey, String thumbnailUrl) {
+    private Pozing(
+            CourseSpot courseSpot,
+            User user,
+            String pozingObjectKey,
+            String thumbnailObjectKey,
+            PozingThumbnailStatus thumbnailStatus
+    ) {
         this.courseSpot = courseSpot;
         this.user = user;
         this.pozingObjectKey = pozingObjectKey;
-        this.thumbnailUrl = thumbnailUrl;
+        this.thumbnailObjectKey = thumbnailObjectKey;
+        this.thumbnailStatus = thumbnailStatus == null ? PozingThumbnailStatus.PENDING : thumbnailStatus;
+    }
+
+    public void completeThumbnail(String thumbnailObjectKey) {
+        this.thumbnailObjectKey = thumbnailObjectKey;
+        this.thumbnailStatus = PozingThumbnailStatus.COMPLETED;
+    }
+
+    public void failThumbnail() {
+        this.thumbnailStatus = PozingThumbnailStatus.FAILED;
     }
 }
