@@ -8,7 +8,6 @@ import com.pozit.pozitserver.notification.repository.NotificationRepository;
 import com.pozit.pozitserver.travel.domain.Travel;
 import com.pozit.pozitserver.user.domain.User;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,7 +24,10 @@ public class NotificationService {
 
     @Transactional
     public List<NotificationListResponse> getNotifications(User user) {
-        List<NotificationListResponse> responses = notificationRepository.findByUserOrderByCreatedAtDesc(user).stream()
+        List<Notification> notifications = notificationRepository.findByUserOrderByCreatedAtDesc(user);
+        notifications.forEach(Notification::markAsRead);
+
+        return notifications.stream()
                 .map(notification -> new NotificationListResponse(
                         notification.getId(),
                         notification.getType().name(),
@@ -35,10 +37,6 @@ public class NotificationService {
                         notification.getCreatedAt()
                 ))
                 .toList();
-
-        notificationRepository.markAllAsRead(user);
-
-        return responses;
     }
 
     // 읽음 처리 없는 순수 조회 (배지용)
@@ -55,13 +53,11 @@ public class NotificationService {
                 .content(content)
                 .build();
         notificationRepository.save(notification);
+        notificationRepository.deleteExcessByUser(user.getId(), MAX_NOTIFICATION_COUNT);
+    }
 
-        long count = notificationRepository.countByUser(user);
-        if (count > MAX_NOTIFICATION_COUNT) {
-            long excess = count - MAX_NOTIFICATION_COUNT;
-            List<Notification> oldestOnes = notificationRepository
-                    .findByUserOrderByCreatedAtAsc(user, PageRequest.of(0, (int) excess));
-            notificationRepository.deleteAll(oldestOnes);
-        }
+    @Transactional
+    public void deleteByTravel(Travel travel) {
+        notificationRepository.deleteByTravel(travel);
     }
 }

@@ -1,8 +1,8 @@
 package com.pozit.pozitserver.notification.repository;
 
 import com.pozit.pozitserver.notification.domain.Notification;
+import com.pozit.pozitserver.travel.domain.Travel;
 import com.pozit.pozitserver.user.domain.User;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -21,17 +21,22 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             """)
     List<Notification> findByUserOrderByCreatedAtDesc(@Param("user") User user);
 
-    List<Notification> findByUserOrderByCreatedAtAsc(User user, Pageable pageable);
-
-    long countByUser(User user);
-
     long countByUserAndIsReadFalse(User user);
 
     @Modifying
-    @Query("""
-            update Notification n
-            set n.isRead = true
-            where n.user = :user and n.isRead = false
-            """)
-    void markAllAsRead(@Param("user") User user);
+    @Query("delete from Notification n where n.travel = :travel")
+    void deleteByTravel(@Param("travel") Travel travel);
+
+    @Modifying
+    @Query(value = """
+            delete from notifications
+            where user_id = :userId
+            and id not in (
+                select id from notifications
+                where user_id = :userId
+                order by created_at desc
+                limit :limit
+            )
+            """, nativeQuery = true)
+    void deleteExcessByUser(@Param("userId") Long userId, @Param("limit") int limit);
 }

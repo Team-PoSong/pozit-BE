@@ -12,20 +12,23 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 @Component
 @RequiredArgsConstructor
 public class TravelStartNotificationScheduler {
 
+    private static final ZoneId NOTIFICATION_ZONE = ZoneId.of("Asia/Seoul");
+
     private final TravelRepository travelRepository;
     private final TravelMemberRepository travelMemberRepository;
     private final NotificationService notificationService;
 
     @Transactional
-    @Scheduled(cron = "0 0 9 * * *")
+    @Scheduled(cron = "0 0 9 * * *", zone = "Asia/Seoul")
     public void notifyTravelsStartingTomorrow() {
-        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        LocalDate tomorrow = LocalDate.now(NOTIFICATION_ZONE).plusDays(1);
         List<Travel> travels = travelRepository.findByStartDate(tomorrow);
         if (travels.isEmpty()) {
             return;

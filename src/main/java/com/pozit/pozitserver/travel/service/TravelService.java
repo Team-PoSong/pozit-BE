@@ -210,6 +210,12 @@ public class TravelService {
 
         List<TravelMember> existingMembers = travelMemberRepository.findByTravel(travel);
 
+        boolean alreadyJoined = existingMembers.stream()
+                .anyMatch(member -> member.getUser().getId().equals(user.getId()));
+        if (alreadyJoined) {
+            throw new BusinessException(ErrorCode.ALREADY_JOINED_TRAVEL);
+        }
+
         TravelMember travelMember=TravelMember.builder()
                 .travel(travel)
                 .user(user)
@@ -951,6 +957,7 @@ public class TravelService {
         courseRepository.deleteAllInBatch(courses);
         travelTagRepository.deleteAllInBatch(travelTagRepository.findByTravel(travel));
         likeRepository.deleteByTravel(travel);
+        notificationService.deleteByTravel(travel);
         travelMemberRepository.deleteAllInBatch(travelMemberRepository.findByTravel(travel));
         travelRepository.delete(travel);
 
