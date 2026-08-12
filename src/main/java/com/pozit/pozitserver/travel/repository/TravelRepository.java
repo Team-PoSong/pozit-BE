@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,4 +26,6 @@ public interface TravelRepository extends JpaRepository<Travel, Long>, TravelRep
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select t from Travel t where t.id = :id")
     Optional<Travel> findByIdForUpdate(@Param("id") Long id);
+
+    List<Travel> findByStartDate(LocalDate startDate);
 }

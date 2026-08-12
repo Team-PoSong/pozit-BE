@@ -1,5 +1,6 @@
 package com.pozit.pozitserver.notification.domain;
 
+import com.pozit.pozitserver.travel.domain.Travel;
 import com.pozit.pozitserver.user.domain.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -23,6 +24,11 @@ public class Notification {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    // NOTICE 등 특정 여행과 무관한 알림은 null
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "travel_id")
+    private Travel travel;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private NotificationType type;
@@ -45,8 +51,9 @@ public class Notification {
     }
 
     @Builder
-    private Notification(User user, NotificationType type, String content) {
+    private Notification(User user, Travel travel, NotificationType type, String content) {
         this.user = user;
+        this.travel = travel;
         this.type = type;
         this.content = content;
         this.isRead = false;
