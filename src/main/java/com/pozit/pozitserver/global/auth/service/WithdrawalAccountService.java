@@ -6,6 +6,7 @@ import com.pozit.pozitserver.course.repository.CourseRepository;
 import com.pozit.pozitserver.course.repository.CourseSpotRepository;
 import com.pozit.pozitserver.global.s3.S3Service;
 import com.pozit.pozitserver.like.repository.LikeRepository;
+import com.pozit.pozitserver.notification.service.NotificationService;
 import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
 import com.pozit.pozitserver.support.repository.FeedbackRepository;
@@ -44,6 +45,7 @@ public class WithdrawalAccountService {
     private final LikeRepository likeRepository;
     private final FeedbackRepository feedbackRepository;
     private final S3Service s3Service;
+    private final NotificationService notificationService;
 
     @Transactional
     public void completeWithdrawal(User user) {
@@ -108,6 +110,7 @@ public class WithdrawalAccountService {
 
         likeRepository.deleteByTravelIn(List.of(travel));
         travelTagRepository.deleteAllInBatch(travelTagRepository.findByTravel(travel));
+        notificationService.deleteByTravel(travel);
         travelMemberRepository.deleteAllInBatch(travelMemberRepository.findByTravel(travel));
         travelRepository.delete(travel);
     }
