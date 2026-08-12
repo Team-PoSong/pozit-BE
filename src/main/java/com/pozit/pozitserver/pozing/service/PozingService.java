@@ -26,6 +26,7 @@ import com.pozit.pozitserver.pozing.worker.PozingEditQueuePublisher;
 import com.pozit.pozitserver.pozing.worker.PozingThumbnailQueuePublisher;
 import com.pozit.pozitserver.travel.domain.Travel;
 import com.pozit.pozitserver.travel.domain.TravelMember;
+import com.pozit.pozitserver.travel.domain.TravelStatus;
 import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
 import com.pozit.pozitserver.user.domain.User;
@@ -312,6 +313,26 @@ public class PozingService {
         if (memberCount > 0 && savedUserCount >= memberCount) {
             courseSpot.updateStatus(CourseSpotStatus.VISITED);
             notifyCourseCompletedIfAllSpotsVisited(courseSpot);
+            completeTravelIfAllSpotsVisited(courseSpot.getCourse().getTravel());
+        }
+    }
+
+    private void completeTravelIfAllSpotsVisited(Travel travel) {
+        if (travel.getStatus() == TravelStatus.DONE) {
+            return;
+        }
+
+        long totalSpotCount = courseSpotRepository.countByCourse_Travel(travel);
+        if (totalSpotCount == 0) {
+            return;
+        }
+
+        long visitedSpotCount = courseSpotRepository.countByCourse_TravelAndStatus(
+                travel,
+                CourseSpotStatus.VISITED
+        );
+        if (visitedSpotCount >= totalSpotCount) {
+            travel.changeStatus(TravelStatus.DONE);
         }
     }
 
