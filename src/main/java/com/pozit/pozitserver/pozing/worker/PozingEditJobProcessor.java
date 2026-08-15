@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -138,6 +139,8 @@ public class PozingEditJobProcessor {
             Map<PozingSlot, Path> downloadedVideos
     ) {
         List<FfmpegPozingEditor.PozingEditSegment> segments = new ArrayList<>();
+        List<FfmpegPozingEditor.RouteSpot> routeSpots = createRouteSpots(manifest);
+        int routeIndex = 0;
 
         for (TimelapseManifestPayload.CourseManifest course : manifest.courses()) {
             for (TimelapseManifestPayload.SpotManifest spot : course.spots()) {
@@ -162,14 +165,42 @@ public class PozingEditJobProcessor {
                 if (hasAnyVideo) {
                     segments.add(new FfmpegPozingEditor.PozingEditSegment(
                             spot.courseSpotId(),
+                            course.dayNumber(),
+                            spot.name(),
+                            routeSpots,
+                            routeIndex,
                             memberVideos,
                             memberNicknames
                     ));
                 }
+
+                routeIndex++;
             }
         }
 
         return segments;
+    }
+
+    private List<FfmpegPozingEditor.RouteSpot> createRouteSpots(TimelapseManifestPayload manifest) {
+        List<FfmpegPozingEditor.RouteSpot> routeSpots = new ArrayList<>();
+
+        for (TimelapseManifestPayload.CourseManifest course : manifest.courses()) {
+            for (TimelapseManifestPayload.SpotManifest spot : course.spots()) {
+                routeSpots.add(new FfmpegPozingEditor.RouteSpot(
+                        spot.courseSpotId(),
+                        course.dayNumber(),
+                        spot.name(),
+                        toDouble(spot.latitude()),
+                        toDouble(spot.longitude())
+                ));
+            }
+        }
+
+        return routeSpots;
+    }
+
+    private Double toDouble(BigDecimal value) {
+        return value == null ? null : value.doubleValue();
     }
 
     private StartedJob startJob(Long jobId) {
