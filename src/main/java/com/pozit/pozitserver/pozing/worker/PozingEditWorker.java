@@ -23,7 +23,7 @@ import java.util.Objects;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "pozing.edit.worker.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "pozing.edit.worker.enabled", havingValue = "true", matchIfMissing = true)
 public class PozingEditWorker {
 
     private static final String GROUP_NAME = "pozing-edit-workers";

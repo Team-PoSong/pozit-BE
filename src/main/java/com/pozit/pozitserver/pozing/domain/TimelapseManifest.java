@@ -9,7 +9,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
@@ -56,7 +55,6 @@ public class TimelapseManifest {
     @Column(name = "manifest_version", nullable = false)
     private Integer manifestVersion;
 
-    @Lob
     @Column(name = "manifest_json", nullable = false, columnDefinition = "TEXT")
     private String manifestJson;
 
