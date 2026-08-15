@@ -15,6 +15,7 @@ import java.awt.FontMetrics;
 import java.awt.GradientPaint;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.font.TextAttribute;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,8 +24,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -40,8 +43,20 @@ public class FfmpegPozingEditor {
     private static final long FFMPEG_TIMEOUT_SECONDS = 120;
     private static final String SLEEPING_POZIT_RESOURCE = "static/sleeping_pozit.png";
     private static final String LEGACY_SLEEPING_POZIT_RESOURCE = "static/pozit_sleeping.png";
+    private static final String JUST_POSONG_RESOURCE = "static/just_posong.png";
     private static final String NICKNAME_FONT = "Noto Sans CJK KR";
+    private static final String BADGE_FONT_FAMILY = "Pretendard";
+    private static final String BADGE_BOLD_FONT_RESOURCE = "static/Pretendard-1.3.9/public/static/alternative/Pretendard-Bold.ttf";
+    private static final String BADGE_SEMIBOLD_FONT_RESOURCE = "static/Pretendard-1.3.9/public/static/alternative/Pretendard-SemiBold.ttf";
     private static final int NICKNAME_SHADOW_OFFSET = 2;
+    private static final int BADGE_CANVAS_HEIGHT = 140;
+    private static final int BADGE_VERTICAL_PADDING = 26;
+    private static final int BADGE_HORIZONTAL_PADDING = 45;
+    private static final int BADGE_ICON_SIZE = 48;
+    private static final int BADGE_DAY_TO_ICON_GAP = 65;
+    private static final int BADGE_ICON_TO_NAME_GAP = 10;
+    private static final float BADGE_DAY_FONT_SIZE = 40.0f;
+    private static final float BADGE_PLACE_FONT_SIZE = 39.244f;
     private static final Color MAP_BACKGROUND = new Color(244, 247, 245);
     private static final Color MAP_WATER = new Color(210, 232, 239);
     private static final Color MAP_ROAD = new Color(255, 255, 255, 215);
@@ -49,7 +64,8 @@ public class FfmpegPozingEditor {
     private static final Color MAP_VISITED = new Color(146, 139, 255);
     private static final Color MAP_CURRENT = new Color(0, 139, 255);
     private static final Color MAP_UPCOMING = new Color(255, 255, 255);
-    private static final Color MAP_TEXT = new Color(19, 18, 32);
+    private static final Color BADGE_DAY_COLOR = new Color(0x66, 0x69, 0xFF);
+    private static final Color BADGE_TEXT_COLOR = new Color(0x16, 0x14, 0x24);
 
     @Value("${pozing.edit.ffmpeg-path:ffmpeg}")
     private String ffmpegPath;
@@ -344,6 +360,7 @@ public class FfmpegPozingEditor {
             List<MapPoint> points = calculateMapPoints(segment.routeSpots());
             drawRoute(graphics, points);
             drawSpotStates(graphics, points, segment.currentRouteIndex());
+            drawCurrentPosong(graphics, points, segment.currentRouteIndex());
             drawHeaderPill(graphics, segment.dayNumber(), segment.spotName());
         } finally {
             graphics.dispose();
@@ -489,6 +506,42 @@ public class FfmpegPozingEditor {
         graphics.fillOval(x - 9, y - pinHeight + 15, 18, 18);
     }
 
+    private void drawCurrentPosong(
+            Graphics2D graphics,
+            List<MapPoint> points,
+            int currentRouteIndex
+    ) {
+        if (currentRouteIndex < 0 || currentRouteIndex >= points.size()) {
+            return;
+        }
+
+        BufferedImage posongImage = readImageResource(JUST_POSONG_RESOURCE);
+        if (posongImage == null) {
+            return;
+        }
+
+        MapPoint currentPoint = points.get(currentRouteIndex);
+        int badgeSize = 74;
+        int imageWidth = 46;
+        int imageHeight = Math.max(1, posongImage.getHeight() * imageWidth / posongImage.getWidth());
+        int centerX = clamp(currentPoint.x() + 96, badgeSize / 2 + 12, OUTPUT_WIDTH - badgeSize / 2 - 12);
+        int centerY = clamp(currentPoint.y() - 54, badgeSize / 2 + 118, MAP_AREA_HEIGHT - badgeSize / 2 - 18);
+
+        graphics.setColor(new Color(0, 0, 0, 24));
+        graphics.fillOval(centerX - badgeSize / 2 + 4, centerY - badgeSize / 2 + 8, badgeSize, badgeSize);
+        graphics.setColor(new Color(255, 255, 255, 245));
+        graphics.fillOval(centerX - badgeSize / 2, centerY - badgeSize / 2, badgeSize, badgeSize);
+
+        graphics.drawImage(
+                posongImage,
+                centerX - imageWidth / 2,
+                centerY - imageHeight / 2 + 2,
+                imageWidth,
+                imageHeight,
+                null
+        );
+    }
+
     private void drawUpcomingSpot(Graphics2D graphics, MapPoint point) {
         graphics.setColor(MAP_UPCOMING);
         graphics.fillOval(point.x() - 14, point.y() - 14, 28, 28);
@@ -504,49 +557,119 @@ public class FfmpegPozingEditor {
     ) {
         String dayText = "Day " + (dayNumber == null ? "-" : dayNumber);
         String nameText = spotName == null || spotName.isBlank() ? "장소" : spotName;
-        Font dayFont = new Font(NICKNAME_FONT, Font.BOLD, 34);
-        Font nameFont = new Font(NICKNAME_FONT, Font.BOLD, 32);
+        Font dayFont = createBadgeFont(BADGE_DAY_FONT_SIZE, BADGE_BOLD_FONT_RESOURCE, TextAttribute.WEIGHT_BOLD);
+        Font placeFont = createBadgeFont(BADGE_PLACE_FONT_SIZE, BADGE_SEMIBOLD_FONT_RESOURCE, TextAttribute.WEIGHT_SEMIBOLD);
 
         FontMetrics dayMetrics = graphics.getFontMetrics(dayFont);
-        FontMetrics nameMetrics = graphics.getFontMetrics(nameFont);
-        int iconWidth = 34;
-        int gap = 22;
-        int contentWidth = dayMetrics.stringWidth(dayText) + iconWidth + nameMetrics.stringWidth(nameText) + gap * 3;
-        int pillWidth = Math.min(620, Math.max(330, contentWidth + 42));
-        int pillHeight = 74;
+        FontMetrics placeMetrics = graphics.getFontMetrics(placeFont);
+        int pillHeight = BADGE_ICON_SIZE + BADGE_VERTICAL_PADDING * 2;
+        int maxPillWidth = OUTPUT_WIDTH - 48;
+        int fixedWidth = BADGE_HORIZONTAL_PADDING * 2
+                + dayMetrics.stringWidth(dayText)
+                + BADGE_DAY_TO_ICON_GAP
+                + BADGE_ICON_SIZE
+                + BADGE_ICON_TO_NAME_GAP;
+        int maxNameWidth = Math.max(1, maxPillWidth - fixedWidth);
+        String fittedNameText = fitText(graphics, nameText, placeFont, maxNameWidth);
+        int contentWidth = dayMetrics.stringWidth(dayText)
+                + BADGE_DAY_TO_ICON_GAP
+                + BADGE_ICON_SIZE
+                + BADGE_ICON_TO_NAME_GAP
+                + placeMetrics.stringWidth(fittedNameText);
+        int pillWidth = Math.min(maxPillWidth, contentWidth + BADGE_HORIZONTAL_PADDING * 2);
         int pillX = (OUTPUT_WIDTH - pillWidth) / 2;
-        int pillY = 36;
+        int pillY = (BADGE_CANVAS_HEIGHT - pillHeight) / 2;
 
-        graphics.setColor(new Color(0, 0, 0, 28));
-        graphics.fillRoundRect(pillX + 4, pillY + 8, pillWidth, pillHeight, pillHeight, pillHeight);
-        graphics.setColor(new Color(255, 255, 255, 245));
+        drawBadgeShadow(graphics, pillX, pillY, pillWidth, pillHeight);
+        graphics.setColor(Color.WHITE);
         graphics.fillRoundRect(pillX, pillY, pillWidth, pillHeight, pillHeight, pillHeight);
 
-        int baseline = pillY + 49;
-        int cursor = pillX + 42;
+        int maxAscent = Math.max(dayMetrics.getAscent(), placeMetrics.getAscent());
+        int maxDescent = Math.max(dayMetrics.getDescent(), placeMetrics.getDescent());
+        int baseline = pillY + (pillHeight - maxAscent - maxDescent) / 2 + maxAscent;
+        int cursor = pillX + BADGE_HORIZONTAL_PADDING;
+
         graphics.setFont(dayFont);
-        graphics.setColor(new Color(103, 99, 255));
+        graphics.setColor(BADGE_DAY_COLOR);
         graphics.drawString(dayText, cursor, baseline);
-        cursor += dayMetrics.stringWidth(dayText) + gap;
+        cursor += dayMetrics.stringWidth(dayText) + BADGE_DAY_TO_ICON_GAP;
 
-        drawPinIcon(graphics, cursor + 14, pillY + 38);
-        cursor += iconWidth + gap;
+        drawPinIcon(graphics, cursor + BADGE_ICON_SIZE / 2, pillY + pillHeight / 2);
+        cursor += BADGE_ICON_SIZE + BADGE_ICON_TO_NAME_GAP;
 
-        graphics.setFont(nameFont);
-        graphics.setColor(MAP_TEXT);
-        graphics.drawString(fitText(graphics, nameText, nameFont, pillX + pillWidth - cursor - 32), cursor, baseline);
+        graphics.setFont(placeFont);
+        graphics.setColor(BADGE_TEXT_COLOR);
+        graphics.drawString(fittedNameText, cursor, baseline);
+    }
+
+    private Font createBadgeFont(
+            float fontSize,
+            String resourcePath,
+            Float weight
+    ) {
+        ClassPathResource resource = new ClassPathResource(resourcePath);
+        if (resource.exists()) {
+            try (InputStream inputStream = resource.getInputStream()) {
+                return Font.createFont(Font.TRUETYPE_FONT, inputStream).deriveFont(fontSize);
+            } catch (Exception ignored) {
+            }
+        }
+
+        Map<TextAttribute, Object> attributes = new HashMap<>();
+        attributes.put(TextAttribute.FAMILY, BADGE_FONT_FAMILY);
+        attributes.put(TextAttribute.SIZE, fontSize);
+        attributes.put(TextAttribute.WEIGHT, weight);
+        return new Font(attributes);
+    }
+
+    private void drawBadgeShadow(
+            Graphics2D graphics,
+            int x,
+            int y,
+            int width,
+            int height
+    ) {
+        graphics.setColor(new Color(0x7E, 0x7E, 0x7E, 34));
+        graphics.fillRoundRect(x - 12, y - 7, width + 24, height + 24, height + 24, height + 24);
+        graphics.setColor(new Color(0x7E, 0x7E, 0x7E, 42));
+        graphics.fillRoundRect(x - 7, y - 3, width + 14, height + 14, height + 14, height + 14);
+        graphics.setColor(new Color(0x7E, 0x7E, 0x7E, 48));
+        graphics.fillRoundRect(x - 3, y, width + 6, height + 6, height + 6, height + 6);
     }
 
     private void drawPinIcon(Graphics2D graphics, int centerX, int centerY) {
-        graphics.setColor(new Color(103, 99, 255));
-        graphics.fillOval(centerX - 13, centerY - 19, 26, 26);
+        graphics.setColor(BADGE_DAY_COLOR);
+        graphics.fillOval(centerX - 17, centerY - 23, 34, 34);
         graphics.fillPolygon(
-                new int[]{centerX - 8, centerX + 8, centerX},
-                new int[]{centerY, centerY, centerY + 18},
+                new int[]{centerX - 11, centerX + 11, centerX},
+                new int[]{centerY + 2, centerY + 2, centerY + 22},
                 3
         );
         graphics.setColor(Color.WHITE);
-        graphics.fillOval(centerX - 5, centerY - 11, 10, 10);
+        graphics.fillOval(centerX - 7, centerY - 13, 14, 14);
+        graphics.setColor(BADGE_DAY_COLOR);
+        graphics.fillOval(centerX - 4, centerY - 10, 8, 8);
+    }
+
+    private BufferedImage readImageResource(String resourcePath) {
+        ClassPathResource resource = new ClassPathResource(resourcePath);
+        if (!resource.exists()) {
+            return null;
+        }
+
+        try (InputStream inputStream = resource.getInputStream()) {
+            return ImageIO.read(inputStream);
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
+        }
+    }
+
+    private int clamp(
+            int value,
+            int min,
+            int max
+    ) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private String fitText(
