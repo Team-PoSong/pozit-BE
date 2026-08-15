@@ -1,4 +1,4 @@
-package com.pozit.pozitserver.pozing.worker;
+package com.pozit.pozitserver.pozing.worker.thumbnail;
 
 import com.pozit.pozitserver.global.s3.S3Service;
 import com.pozit.pozitserver.pozing.domain.Pozing;

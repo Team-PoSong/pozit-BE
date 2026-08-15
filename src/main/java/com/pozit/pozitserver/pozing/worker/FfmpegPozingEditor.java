@@ -3,13 +3,16 @@ package com.pozit.pozitserver.pozing.worker;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -26,6 +29,8 @@ public class FfmpegPozingEditor {
     private static final int OUTPUT_FPS = 30;
     private static final double MIN_SEGMENT_DURATION_SECONDS = 0.1;
     private static final long FFMPEG_TIMEOUT_SECONDS = 120;
+    private static final String SLEEPING_POZIT_RESOURCE = "static/sleeping_pozit.png";
+    private static final String LEGACY_SLEEPING_POZIT_RESOURCE = "static/pozit_sleeping.png";
 
     @Value("${pozing.edit.ffmpeg-path:ffmpeg}")
     private String ffmpegPath;
@@ -46,10 +51,11 @@ public class FfmpegPozingEditor {
         }
 
         List<Path> segmentOutputs = new ArrayList<>();
+        Path sleepingPozitImage = copySleepingPozitImageIfNeeded(segments, workDirectory);
 
         for (int i = 0; i < segments.size(); i++) {
             Path segmentOutput = workDirectory.resolve("segment-%03d.mp4".formatted(i));
-            createStackedSegment(segments.get(i), memberCount, segmentOutput);
+            createStackedSegment(segments.get(i), memberCount, sleepingPozitImage, segmentOutput);
             segmentOutputs.add(segmentOutput);
         }
 
@@ -61,6 +67,7 @@ public class FfmpegPozingEditor {
     private void createStackedSegment(
             PozingEditSegment segment,
             int memberCount,
+            Path sleepingPozitImage,
             Path output
     ) {
         double duration = calculateSegmentDuration(segment.memberVideos());
@@ -72,6 +79,13 @@ public class FfmpegPozingEditor {
             if (video != null) {
                 command.add("-i");
                 command.add(video.toString());
+            } else {
+                command.add("-loop");
+                command.add("1");
+                command.add("-t");
+                command.add(formatDuration(duration));
+                command.add("-i");
+                command.add(sleepingPozitImage.toString());
             }
         }
 
@@ -142,6 +156,7 @@ public class FfmpegPozingEditor {
             LayoutCell cell = videoCells.get(memberIndex);
 
             if (video == null) {
+                int iconSize = calculateSleepingIconSize(cell);
                 filter.append("color=c=black:s=")
                         .append(cell.width())
                         .append("x")
@@ -150,9 +165,32 @@ public class FfmpegPozingEditor {
                         .append(OUTPUT_FPS)
                         .append(":d=")
                         .append(formattedDuration)
-                        .append(",format=yuv420p,setpts=PTS-STARTPTS[v")
+                        .append(",format=yuv420p,setpts=PTS-STARTPTS[empty")
                         .append(memberIndex)
                         .append("];");
+
+                filter.append("[")
+                        .append(inputIndex)
+                        .append(":v]scale=")
+                        .append(iconSize)
+                        .append(":")
+                        .append(iconSize)
+                        .append(":force_original_aspect_ratio=decrease,setsar=1,format=rgba,fps=")
+                        .append(OUTPUT_FPS)
+                        .append(",trim=duration=")
+                        .append(formattedDuration)
+                        .append(",setpts=PTS-STARTPTS[icon")
+                        .append(memberIndex)
+                        .append("];");
+
+                filter.append("[empty")
+                        .append(memberIndex)
+                        .append("][icon")
+                        .append(memberIndex)
+                        .append("]overlay=(W-w)/2:(H-h)/2,format=yuv420p[v")
+                        .append(memberIndex)
+                        .append("];");
+                inputIndex++;
             } else {
                 filter.append("[")
                         .append(inputIndex)
@@ -301,6 +339,36 @@ public class FfmpegPozingEditor {
         }
     }
 
+    private Path copySleepingPozitImageIfNeeded(
+            List<PozingEditSegment> segments,
+            Path workDirectory
+    ) {
+        boolean hasMissingVideo = segments.stream()
+                .flatMap(segment -> segment.memberVideos().stream())
+                .anyMatch(video -> video == null);
+
+        if (!hasMissingVideo) {
+            return null;
+        }
+
+        ClassPathResource resource = new ClassPathResource(SLEEPING_POZIT_RESOURCE);
+        if (!resource.exists()) {
+            resource = new ClassPathResource(LEGACY_SLEEPING_POZIT_RESOURCE);
+        }
+
+        if (!resource.exists()) {
+            throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
+        }
+
+        Path target = workDirectory.resolve("sleeping_pozit.png");
+        try (InputStream inputStream = resource.getInputStream()) {
+            Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING);
+            return target;
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
+        }
+    }
+
     static List<LayoutCell> calculateVideoCells(int memberCount) {
         if (memberCount <= 0) {
             throw new IllegalArgumentException("Pozing edit member count must be positive.");
@@ -332,6 +400,10 @@ public class FfmpegPozingEditor {
 
     private static int evenFloor(int value) {
         return Math.max(2, value / 2 * 2);
+    }
+
+    private static int calculateSleepingIconSize(LayoutCell cell) {
+        return evenFloor(Math.min(cell.width(), cell.height()) / 2);
     }
 
     private String formatDuration(double duration) {

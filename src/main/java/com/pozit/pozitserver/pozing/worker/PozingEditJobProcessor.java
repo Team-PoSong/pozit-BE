@@ -1,16 +1,17 @@
 package com.pozit.pozitserver.pozing.worker;
 
-import com.pozit.pozitserver.course.domain.CourseSpot;
-import com.pozit.pozitserver.course.repository.CourseSpotRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
 import com.pozit.pozitserver.notification.domain.NotificationType;
 import com.pozit.pozitserver.notification.service.NotificationService;
-import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.pozing.domain.PozingEditJob;
 import com.pozit.pozitserver.pozing.domain.PozingEditJobStatus;
+import com.pozit.pozitserver.pozing.domain.TimelapseManifest;
+import com.pozit.pozitserver.pozing.model.TimelapseManifestPayload;
 import com.pozit.pozitserver.pozing.repository.PozingEditJobRepository;
-import com.pozit.pozitserver.pozing.repository.PozingRepository;
+import com.pozit.pozitserver.pozing.repository.TimelapseManifestRepository;
 import com.pozit.pozitserver.travel.domain.TravelMember;
 import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,9 +32,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class PozingEditJobProcessor {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final PozingEditJobRepository pozingEditJobRepository;
-    private final PozingRepository pozingRepository;
-    private final CourseSpotRepository courseSpotRepository;
+    private final TimelapseManifestRepository timelapseManifestRepository;
     private final TravelMemberRepository travelMemberRepository;
     private final PozingEditS3Storage pozingEditS3Storage;
     private final FfmpegPozingEditor ffmpegPozingEditor;
@@ -53,18 +55,11 @@ public class PozingEditJobProcessor {
 
         try {
             workDirectory = pozingEditS3Storage.createWorkDirectory(jobId);
-            List<TravelMember> members = travelMemberRepository.findAllByTravelIdForEdit(startedJob.travelId());
-            List<CourseSpot> courseSpots = courseSpotRepository.findAllByTravelIdForEdit(startedJob.travelId());
-            List<Pozing> pozings = pozingRepository.findAllByTravelIdForEdit(startedJob.travelId());
-
-            if (pozings.isEmpty()) {
-                throw new BusinessException(ErrorCode.POZING_VIDEO_NOT_FOUND);
-            }
-
-            Map<PozingSlot, Path> downloadedVideos = downloadVideosBySlot(pozings, workDirectory);
+            TimelapseManifestPayload manifest = loadManifest(jobId);
+            int memberCount = countMembers(manifest);
+            Map<PozingSlot, Path> downloadedVideos = downloadVideosBySlot(manifest, workDirectory);
             List<FfmpegPozingEditor.PozingEditSegment> segments = createEditSegments(
-                    courseSpots,
-                    members,
+                    manifest,
                     downloadedVideos
             );
 
@@ -72,7 +67,7 @@ public class PozingEditJobProcessor {
                 throw new BusinessException(ErrorCode.POZING_VIDEO_NOT_FOUND);
             }
 
-            Path editedVideo = ffmpegPozingEditor.edit(segments, members.size(), workDirectory);
+            Path editedVideo = ffmpegPozingEditor.edit(segments, memberCount, workDirectory);
             String resultS3Key = pozingEditS3Storage.uploadEditedVideo(jobId, editedVideo);
             completeJob(jobId, resultS3Key);
         } finally {
@@ -80,58 +75,94 @@ public class PozingEditJobProcessor {
         }
     }
 
+    private TimelapseManifestPayload loadManifest(Long jobId) {
+        TimelapseManifest manifest = timelapseManifestRepository.findByPozingEditJob_Id(jobId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POZING_EDIT_FAILED));
+
+        try {
+            return OBJECT_MAPPER.readValue(
+                    manifest.getManifestJson(),
+                    TimelapseManifestPayload.class
+            );
+        } catch (JsonProcessingException e) {
+            throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
+        }
+    }
+
+    private int countMembers(TimelapseManifestPayload manifest) {
+        return manifest.courses().stream()
+                .flatMap(course -> course.spots().stream())
+                .findFirst()
+                .map(spot -> spot.pozings().size())
+                .filter(count -> count > 0)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POZING_VIDEO_NOT_FOUND));
+    }
+
     private Map<PozingSlot, Path> downloadVideosBySlot(
-            List<Pozing> pozings,
+            TimelapseManifestPayload manifest,
             Path workDirectory
     ) {
         Map<PozingSlot, Path> downloadedVideos = new HashMap<>();
+        int sourceIndex = 0;
 
-        for (Pozing pozing : pozings) {
-            PozingSlot slot = new PozingSlot(
-                    pozing.getCourseSpot().getId(),
-                    pozing.getUser().getId()
-            );
+        for (TimelapseManifestPayload.CourseManifest course : manifest.courses()) {
+            for (TimelapseManifestPayload.SpotManifest spot : course.spots()) {
+                for (TimelapseManifestPayload.MemberPozingManifest pozing : spot.pozings()) {
+                    if (pozing.pozingObjectKey() == null) {
+                        continue;
+                    }
 
-            if (downloadedVideos.containsKey(slot)) {
-                continue;
+                    PozingSlot slot = new PozingSlot(
+                            spot.courseSpotId(),
+                            pozing.userId()
+                    );
+
+                    if (downloadedVideos.containsKey(slot)) {
+                        continue;
+                    }
+
+                    Path target = workDirectory.resolve("source-%03d.mp4".formatted(sourceIndex++));
+                    downloadedVideos.put(
+                            slot,
+                            pozingEditS3Storage.downloadOriginalVideo(pozing.pozingObjectKey(), target)
+                    );
+                }
             }
-
-            Path target = workDirectory.resolve("source-%d.mp4".formatted(pozing.getId()));
-            downloadedVideos.put(slot, pozingEditS3Storage.downloadOriginalVideo(pozing, target));
         }
 
         return downloadedVideos;
     }
 
     private List<FfmpegPozingEditor.PozingEditSegment> createEditSegments(
-            List<CourseSpot> courseSpots,
-            List<TravelMember> members,
+            TimelapseManifestPayload manifest,
             Map<PozingSlot, Path> downloadedVideos
     ) {
         List<FfmpegPozingEditor.PozingEditSegment> segments = new ArrayList<>();
 
-        for (CourseSpot courseSpot : courseSpots) {
-            List<Path> memberVideos = new ArrayList<>();
-            boolean hasAnyVideo = false;
+        for (TimelapseManifestPayload.CourseManifest course : manifest.courses()) {
+            for (TimelapseManifestPayload.SpotManifest spot : course.spots()) {
+                List<Path> memberVideos = new ArrayList<>();
+                boolean hasAnyVideo = false;
 
-            for (TravelMember member : members) {
-                Path video = downloadedVideos.get(new PozingSlot(
-                        courseSpot.getId(),
-                        member.getUser().getId()
-                ));
+                for (TimelapseManifestPayload.MemberPozingManifest pozing : spot.pozings()) {
+                    Path video = downloadedVideos.get(new PozingSlot(
+                            spot.courseSpotId(),
+                            pozing.userId()
+                    ));
 
-                if (video != null) {
-                    hasAnyVideo = true;
+                    if (video != null) {
+                        hasAnyVideo = true;
+                    }
+
+                    memberVideos.add(video);
                 }
 
-                memberVideos.add(video);
-            }
-
-            if (hasAnyVideo) {
-                segments.add(new FfmpegPozingEditor.PozingEditSegment(
-                        courseSpot.getId(),
-                        memberVideos
-                ));
+                if (hasAnyVideo) {
+                    segments.add(new FfmpegPozingEditor.PozingEditSegment(
+                            spot.courseSpotId(),
+                            memberVideos
+                    ));
+                }
             }
         }
 

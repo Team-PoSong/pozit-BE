@@ -1,4 +1,4 @@
-package com.pozit.pozitserver.pozing.worker;
+package com.pozit.pozitserver.pozing.worker.thumbnail;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
