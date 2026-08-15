@@ -32,28 +32,11 @@ public class PozingEditS3Storage {
         }
     }
 
-    public List<Path> downloadOriginalVideos(
-            List<Pozing> pozings,
-            Path workDirectory
-    ) {
-        List<Path> downloadedFiles = new ArrayList<>();
-
-        for (int i = 0; i < pozings.size(); i++) {
-            Pozing pozing = pozings.get(i);
-            Path target = workDirectory.resolve("input-%03d.mp4".formatted(i));
-
-            s3Service.download(pozing.getPozingObjectKey(), target);
-            downloadedFiles.add(target);
-        }
-
-        return downloadedFiles;
-    }
-
     public Path downloadOriginalVideo(
-            Pozing pozing,
+            String objectKey,
             Path target
     ) {
-        s3Service.download(pozing.getPozingObjectKey(), target);
+        s3Service.download(objectKey, target);
         return target;
     }
 

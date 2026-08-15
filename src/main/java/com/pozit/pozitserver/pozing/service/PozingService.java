@@ -13,23 +13,29 @@ import com.pozit.pozitserver.pozing.domain.Pozing;
 import com.pozit.pozitserver.pozing.domain.PozingEditJob;
 import com.pozit.pozitserver.pozing.domain.PozingEditJobStatus;
 import com.pozit.pozitserver.pozing.domain.PozingThumbnailStatus;
+import com.pozit.pozitserver.pozing.domain.TimelapseManifest;
 import com.pozit.pozitserver.pozing.dto.request.PozingSaveRequest;
 import com.pozit.pozitserver.pozing.dto.response.PozingEditJobCreateResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingEditJobStatusResponse;
+import com.pozit.pozitserver.pozing.dto.response.PozingMapManifestResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingPresignedUrlResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingSaveResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingThumbnailStatusResponse;
+import com.pozit.pozitserver.pozing.model.TimelapseManifestPayload;
 import com.pozit.pozitserver.pozing.repository.PozingEditJobRepository;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
+import com.pozit.pozitserver.pozing.repository.TimelapseManifestRepository;
 import com.pozit.pozitserver.pozing.worker.PozingEditS3Storage;
 import com.pozit.pozitserver.pozing.worker.PozingEditQueuePublisher;
-import com.pozit.pozitserver.pozing.worker.PozingThumbnailQueuePublisher;
+import com.pozit.pozitserver.pozing.worker.thumbnail.PozingThumbnailQueuePublisher;
 import com.pozit.pozitserver.travel.domain.Travel;
 import com.pozit.pozitserver.travel.domain.TravelMember;
 import com.pozit.pozitserver.travel.domain.TravelStatus;
 import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
 import com.pozit.pozitserver.user.domain.User;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -50,6 +56,7 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class PozingService {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Duration PRESIGNED_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final Duration POZING_GET_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final Duration THUMBNAIL_GET_URL_EXPIRATION = Duration.ofMinutes(10);
@@ -59,6 +66,7 @@ public class PozingService {
     private final CourseSpotRepository courseSpotRepository;
     private final PozingRepository pozingRepository;
     private final PozingEditJobRepository pozingEditJobRepository;
+    private final TimelapseManifestRepository timelapseManifestRepository;
     private final TravelMemberRepository travelMemberRepository;
     private final TravelRepository travelRepository;
     private final PozingEditQueuePublisher pozingEditQueuePublisher;
@@ -66,6 +74,7 @@ public class PozingService {
     private final PozingThumbnailQueuePublisher pozingThumbnailQueuePublisher;
     private final PlatformTransactionManager transactionManager;
     private final NotificationService notificationService;
+    private final TimelapseManifestBuilder timelapseManifestBuilder;
 
     /**
      * 타임랩스 저장용 presigned url 발급
@@ -162,6 +171,12 @@ public class PozingService {
         }
 
         PozingEditJob job = pozingEditJobRepository.save(PozingEditJob.queued(travel, user));
+        TimelapseManifestPayload manifestPayload = timelapseManifestBuilder.build(travel);
+        timelapseManifestRepository.save(TimelapseManifest.create(
+                job,
+                travel,
+                serializeManifest(manifestPayload)
+        ));
         publishEditJobAfterCommit(job.getId());
 
         return new PozingEditJobCreateResponse(job.getId(), job.getStatus());
@@ -201,6 +216,31 @@ public class PozingService {
 
     }
 
+    public PozingMapManifestResponse getMapManifest(Long jobId) {
+        TimelapseManifestPayload manifestPayload = loadManifest(jobId);
+
+        return new PozingMapManifestResponse(
+                manifestPayload.version(),
+                manifestPayload.travelId(),
+                manifestPayload.courses().stream()
+                        .map(course -> new PozingMapManifestResponse.CourseMapManifest(
+                                course.courseId(),
+                                course.dayNumber(),
+                                course.spots().stream()
+                                        .map(spot -> new PozingMapManifestResponse.SpotMapManifest(
+                                                spot.courseSpotId(),
+                                                spot.touristSpotId(),
+                                                spot.name(),
+                                                spot.orderIndex(),
+                                                spot.latitude(),
+                                                spot.longitude()
+                                        ))
+                                        .toList()
+                        ))
+                        .toList()
+        );
+    }
+
     private void validateMember(CourseSpot courseSpot, User user) {
         validateMember(courseSpot.getCourse().getTravel(), user);
     }
@@ -222,6 +262,28 @@ public class PozingService {
         }
 
         return s3Service.createGetPresignedUrl(pozing.getThumbnailObjectKey(), THUMBNAIL_GET_URL_EXPIRATION);
+    }
+
+    private String serializeManifest(TimelapseManifestPayload manifestPayload) {
+        try {
+            return OBJECT_MAPPER.writeValueAsString(manifestPayload);
+        } catch (JsonProcessingException e) {
+            throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
+        }
+    }
+
+    private TimelapseManifestPayload loadManifest(Long jobId) {
+        TimelapseManifest manifest = timelapseManifestRepository.findByPozingEditJob_Id(jobId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POZING_EDIT_JOB_NOT_FOUND));
+
+        try {
+            return OBJECT_MAPPER.readValue(
+                    manifest.getManifestJson(),
+                    TimelapseManifestPayload.class
+            );
+        } catch (JsonProcessingException e) {
+            throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
+        }
     }
 
     private void publishEditJobAfterCommit(Long jobId) {

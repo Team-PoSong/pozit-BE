@@ -1,4 +1,4 @@
-package com.pozit.pozitserver.pozing.worker;
+package com.pozit.pozitserver.pozing.worker.thumbnail;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +23,7 @@ import java.util.Objects;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "pozing.thumbnail.worker.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "pozing.thumbnail.worker.enabled", havingValue = "true", matchIfMissing = true)
 public class PozingThumbnailWorker {
 
     private static final String GROUP_NAME = "pozing-thumbnail-workers";
