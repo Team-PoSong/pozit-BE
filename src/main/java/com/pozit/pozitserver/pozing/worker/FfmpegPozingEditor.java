@@ -7,6 +7,13 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -31,6 +38,8 @@ public class FfmpegPozingEditor {
     private static final long FFMPEG_TIMEOUT_SECONDS = 120;
     private static final String SLEEPING_POZIT_RESOURCE = "static/sleeping_pozit.png";
     private static final String LEGACY_SLEEPING_POZIT_RESOURCE = "static/pozit_sleeping.png";
+    private static final String NICKNAME_FONT = "Noto Sans CJK KR";
+    private static final int NICKNAME_SHADOW_OFFSET = 2;
 
     @Value("${pozing.edit.ffmpeg-path:ffmpeg}")
     private String ffmpegPath;
@@ -71,6 +80,8 @@ public class FfmpegPozingEditor {
             Path output
     ) {
         double duration = calculateSegmentDuration(segment.memberVideos());
+        List<LayoutCell> videoCells = calculateVideoCells(memberCount);
+        List<Path> nicknameImages = createNicknameImages(segment, memberCount, videoCells, output);
         List<String> command = new ArrayList<>();
         command.add(ffmpegPath);
         command.add("-y");
@@ -89,7 +100,24 @@ public class FfmpegPozingEditor {
             }
         }
 
-        String filterComplex = buildStackFilter(segment.memberVideos(), memberCount, duration);
+        for (Path nicknameImage : nicknameImages) {
+            if (nicknameImage == null) {
+                continue;
+            }
+            command.add("-loop");
+            command.add("1");
+            command.add("-t");
+            command.add(formatDuration(duration));
+            command.add("-i");
+            command.add(nicknameImage.toString());
+        }
+
+        String filterComplex = buildStackFilter(
+                segment.memberVideos(),
+                nicknameImages,
+                memberCount,
+                duration
+        );
         command.add("-filter_complex");
         command.add(filterComplex);
         command.add("-map");
@@ -123,11 +151,13 @@ public class FfmpegPozingEditor {
 
     private String buildStackFilter(
             List<Path> memberVideos,
+            List<Path> nicknameImages,
             int memberCount,
             double duration
     ) {
         StringBuilder filter = new StringBuilder();
         int inputIndex = 0;
+        int nicknameInputIndex = memberCount;
         List<LayoutCell> videoCells = calculateVideoCells(memberCount);
         String formattedDuration = formatDuration(duration);
 
@@ -189,7 +219,16 @@ public class FfmpegPozingEditor {
                         .append(memberIndex)
                         .append("]overlay=(W-w)/2:(H-h)/2,format=yuv420p[v")
                         .append(memberIndex)
-                        .append("];");
+                        .append("base];");
+
+                nicknameInputIndex = appendNicknameOverlay(
+                        filter,
+                        nicknameImages.get(memberIndex),
+                        nicknameInputIndex,
+                        memberIndex,
+                        cell,
+                        formattedDuration
+                );
                 inputIndex++;
             } else {
                 filter.append("[")
@@ -210,7 +249,16 @@ public class FfmpegPozingEditor {
                         .append(formattedDuration)
                         .append(",setpts=PTS-STARTPTS[v")
                         .append(memberIndex)
-                        .append("];");
+                        .append("base];");
+
+                nicknameInputIndex = appendNicknameOverlay(
+                        filter,
+                        nicknameImages.get(memberIndex),
+                        nicknameInputIndex,
+                        memberIndex,
+                        cell,
+                        formattedDuration
+                );
                 inputIndex++;
             }
         }
@@ -369,6 +417,95 @@ public class FfmpegPozingEditor {
         }
     }
 
+    private List<Path> createNicknameImages(
+            PozingEditSegment segment,
+            int memberCount,
+            List<LayoutCell> videoCells,
+            Path output
+    ) {
+        List<Path> nicknameImages = new ArrayList<>();
+
+        for (int memberIndex = 0; memberIndex < memberCount; memberIndex++) {
+            String nickname = segment.memberNicknames().get(memberIndex);
+            if (nickname == null || nickname.isBlank()) {
+                nicknameImages.add(null);
+                continue;
+            }
+
+            Path imagePath = output.getParent().resolve(
+                    "nickname-%03d-%02d.png".formatted(segment.courseSpotId(), memberIndex)
+            );
+            writeNicknameImage(nickname, videoCells.get(memberIndex), imagePath);
+            nicknameImages.add(imagePath);
+        }
+
+        return nicknameImages;
+    }
+
+    private void writeNicknameImage(
+            String nickname,
+            LayoutCell cell,
+            Path imagePath
+    ) {
+        int fontSize = calculateNicknameFontSize(cell);
+        int maxWidth = Math.max(1, cell.width() - calculateNicknameMargin(cell) * 2);
+        Font font = new Font(NICKNAME_FONT, Font.BOLD, fontSize);
+
+        BufferedImage measureImage = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D measureGraphics = measureImage.createGraphics();
+        try {
+            measureGraphics.setFont(font);
+            FontMetrics metrics = measureGraphics.getFontMetrics();
+            while (metrics.stringWidth(nickname) + NICKNAME_SHADOW_OFFSET > maxWidth && fontSize > 18) {
+                fontSize -= 2;
+                font = font.deriveFont((float) fontSize);
+                measureGraphics.setFont(font);
+                metrics = measureGraphics.getFontMetrics();
+            }
+        } finally {
+            measureGraphics.dispose();
+        }
+
+        BufferedImage labelImage = createNicknameImage(nickname, font);
+        try {
+            ImageIO.write(labelImage, "png", imagePath.toFile());
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
+        }
+    }
+
+    private BufferedImage createNicknameImage(
+            String nickname,
+            Font font
+    ) {
+        BufferedImage measureImage = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D measureGraphics = measureImage.createGraphics();
+        FontMetrics metrics;
+        try {
+            measureGraphics.setFont(font);
+            metrics = measureGraphics.getFontMetrics();
+        } finally {
+            measureGraphics.dispose();
+        }
+
+        int width = Math.max(1, metrics.stringWidth(nickname) + NICKNAME_SHADOW_OFFSET + 2);
+        int height = Math.max(1, metrics.getAscent() + metrics.getDescent() + NICKNAME_SHADOW_OFFSET + 2);
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+        try {
+            graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            graphics.setFont(font);
+            graphics.setColor(new Color(0, 0, 0, 190));
+            graphics.drawString(nickname, NICKNAME_SHADOW_OFFSET + 1, metrics.getAscent() + NICKNAME_SHADOW_OFFSET + 1);
+            graphics.setColor(Color.WHITE);
+            graphics.drawString(nickname, 1, metrics.getAscent() + 1);
+        } finally {
+            graphics.dispose();
+        }
+
+        return image;
+    }
+
     static List<LayoutCell> calculateVideoCells(int memberCount) {
         if (memberCount <= 0) {
             throw new IllegalArgumentException("Pozing edit member count must be positive.");
@@ -406,6 +543,58 @@ public class FfmpegPozingEditor {
         return evenFloor(Math.min(cell.width(), cell.height()) / 2);
     }
 
+    private int appendNicknameOverlay(
+            StringBuilder filter,
+            Path nicknameImage,
+            int nicknameInputIndex,
+            int memberIndex,
+            LayoutCell cell,
+            String formattedDuration
+    ) {
+        if (nicknameImage == null) {
+            filter.append("[v")
+                    .append(memberIndex)
+                    .append("base]copy[v")
+                    .append(memberIndex)
+                    .append("];");
+            return nicknameInputIndex;
+        }
+
+        int margin = calculateNicknameMargin(cell);
+
+        filter.append("[")
+                .append(nicknameInputIndex)
+                .append(":v]format=rgba,fps=")
+                .append(OUTPUT_FPS)
+                .append(",trim=duration=")
+                .append(formattedDuration)
+                .append(",setpts=PTS-STARTPTS[label")
+                .append(memberIndex)
+                .append("];");
+
+        filter.append("[v")
+                .append(memberIndex)
+                .append("base][label")
+                .append(memberIndex)
+                .append("]overlay=")
+                .append(margin)
+                .append(":H-h-")
+                .append(margin)
+                .append(":format=auto,format=yuv420p[v")
+                .append(memberIndex)
+                .append("];");
+
+        return nicknameInputIndex + 1;
+    }
+
+    private static int calculateNicknameFontSize(LayoutCell cell) {
+        return Math.max(24, Math.min(44, cell.height() / 8));
+    }
+
+    private static int calculateNicknameMargin(LayoutCell cell) {
+        return Math.max(24, Math.min(40, cell.height() / 10));
+    }
+
     private String formatDuration(double duration) {
         return String.format(Locale.US, "%.3f", duration);
     }
@@ -420,7 +609,8 @@ public class FfmpegPozingEditor {
 
     public record PozingEditSegment(
             Long courseSpotId,
-            List<Path> memberVideos
+            List<Path> memberVideos,
+            List<String> memberNicknames
     ) {
     }
 }

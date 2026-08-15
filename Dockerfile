@@ -2,7 +2,7 @@ FROM eclipse-temurin:17-jre
 LABEL authors="minseo"
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends ffmpeg fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
     
 WORKDIR /app
