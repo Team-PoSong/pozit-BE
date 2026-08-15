@@ -42,6 +42,7 @@ public class FfmpegPozingEditor {
     private static final int VIDEO_AREA_HEIGHT = OUTPUT_HEIGHT - MAP_AREA_HEIGHT;
     private static final int OUTPUT_FPS = 30;
     private static final double MIN_SEGMENT_DURATION_SECONDS = 0.1;
+    private static final double EMPTY_SEGMENT_DURATION_SECONDS = 3.0;
     private static final long FFMPEG_TIMEOUT_SECONDS = 120;
     private static final long MAP_SCREENSHOT_TIMEOUT_SECONDS = 30;
     private static final String SLEEPING_POZIT_RESOURCE = "static/sleeping_pozit.png";
@@ -189,7 +190,7 @@ public class FfmpegPozingEditor {
         run(command);
     }
 
-    private double calculateSegmentDuration(List<Path> memberVideos) {
+    double calculateSegmentDuration(List<Path> memberVideos) {
         double maxDuration = 0;
 
         for (Path video : memberVideos) {
@@ -199,10 +200,14 @@ public class FfmpegPozingEditor {
             maxDuration = Math.max(maxDuration, probeDuration(video));
         }
 
+        if (maxDuration == 0) {
+            return EMPTY_SEGMENT_DURATION_SECONDS;
+        }
+
         return Math.max(maxDuration, MIN_SEGMENT_DURATION_SECONDS);
     }
 
-    private String buildStackFilter(
+    String buildStackFilter(
             List<Path> memberVideos,
             List<Path> nicknameImages,
             int memberCount,
