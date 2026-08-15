@@ -22,6 +22,9 @@ services:
     environment:
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: "-Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false"
+      POZING_EDIT_MAP_SCREENSHOT_ENABLED: "true"
+      POZING_EDIT_MAP_SCREENSHOT_BASE_URL: "https://api.pozit.kr"
+      POZING_EDIT_MAP_SCREENSHOT_CHROME_PATH: "/usr/bin/google-chrome"
 
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
