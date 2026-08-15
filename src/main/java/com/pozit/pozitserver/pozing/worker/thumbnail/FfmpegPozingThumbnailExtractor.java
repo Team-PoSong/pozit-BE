@@ -1,4 +1,4 @@
-package com.pozit.pozitserver.pozing.worker;
+package com.pozit.pozitserver.pozing.worker.thumbnail;
 
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
