@@ -60,4 +60,5 @@ class FfmpegPozingEditorTest {
                 new FfmpegPozingEditor.LayoutCell(0, 1012, 360, 268)
         );
     }
+
 }

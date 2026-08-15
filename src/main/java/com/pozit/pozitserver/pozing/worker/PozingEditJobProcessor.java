@@ -142,6 +142,7 @@ public class PozingEditJobProcessor {
         for (TimelapseManifestPayload.CourseManifest course : manifest.courses()) {
             for (TimelapseManifestPayload.SpotManifest spot : course.spots()) {
                 List<Path> memberVideos = new ArrayList<>();
+                List<String> memberNicknames = new ArrayList<>();
                 boolean hasAnyVideo = false;
 
                 for (TimelapseManifestPayload.MemberPozingManifest pozing : spot.pozings()) {
@@ -155,12 +156,14 @@ public class PozingEditJobProcessor {
                     }
 
                     memberVideos.add(video);
+                    memberNicknames.add(pozing.nickname());
                 }
 
                 if (hasAnyVideo) {
                     segments.add(new FfmpegPozingEditor.PozingEditSegment(
                             spot.courseSpotId(),
-                            memberVideos
+                            memberVideos,
+                            memberNicknames
                     ));
                 }
             }
