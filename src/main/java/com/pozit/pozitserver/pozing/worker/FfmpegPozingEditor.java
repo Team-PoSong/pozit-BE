@@ -8,9 +8,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.imageio.ImageIO;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
+import java.awt.GradientPaint;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -40,6 +42,14 @@ public class FfmpegPozingEditor {
     private static final String LEGACY_SLEEPING_POZIT_RESOURCE = "static/pozit_sleeping.png";
     private static final String NICKNAME_FONT = "Noto Sans CJK KR";
     private static final int NICKNAME_SHADOW_OFFSET = 2;
+    private static final Color MAP_BACKGROUND = new Color(244, 247, 245);
+    private static final Color MAP_WATER = new Color(210, 232, 239);
+    private static final Color MAP_ROAD = new Color(255, 255, 255, 215);
+    private static final Color MAP_ROUTE = new Color(139, 132, 255);
+    private static final Color MAP_VISITED = new Color(146, 139, 255);
+    private static final Color MAP_CURRENT = new Color(0, 139, 255);
+    private static final Color MAP_UPCOMING = new Color(255, 255, 255);
+    private static final Color MAP_TEXT = new Color(19, 18, 32);
 
     @Value("${pozing.edit.ffmpeg-path:ffmpeg}")
     private String ffmpegPath;
@@ -81,6 +91,7 @@ public class FfmpegPozingEditor {
     ) {
         double duration = calculateSegmentDuration(segment.memberVideos());
         List<LayoutCell> videoCells = calculateVideoCells(memberCount);
+        Path mapPanelImage = createMapPanelImage(segment, output);
         List<Path> nicknameImages = createNicknameImages(segment, memberCount, videoCells, output);
         List<String> command = new ArrayList<>();
         command.add(ffmpegPath);
@@ -111,6 +122,13 @@ public class FfmpegPozingEditor {
             command.add("-i");
             command.add(nicknameImage.toString());
         }
+
+        command.add("-loop");
+        command.add("1");
+        command.add("-t");
+        command.add(formatDuration(duration));
+        command.add("-i");
+        command.add(mapPanelImage.toString());
 
         String filterComplex = buildStackFilter(
                 segment.memberVideos(),
@@ -158,6 +176,7 @@ public class FfmpegPozingEditor {
         StringBuilder filter = new StringBuilder();
         int inputIndex = 0;
         int nicknameInputIndex = memberCount;
+        int mapInputIndex = memberCount + (int) nicknameImages.stream().filter(path -> path != null).count();
         List<LayoutCell> videoCells = calculateVideoCells(memberCount);
         String formattedDuration = formatDuration(duration);
 
@@ -171,15 +190,21 @@ public class FfmpegPozingEditor {
                 .append(formattedDuration)
                 .append("[canvas];");
 
-        filter.append("color=c=0xe8efe4:s=")
+        filter.append("[")
+                .append(mapInputIndex)
+                .append(":v]scale=")
                 .append(OUTPUT_WIDTH)
-                .append("x")
+                .append(":")
                 .append(MAP_AREA_HEIGHT)
-                .append(":r=")
+                .append(":force_original_aspect_ratio=increase,crop=")
+                .append(OUTPUT_WIDTH)
+                .append(":")
+                .append(MAP_AREA_HEIGHT)
+                .append(",setsar=1,fps=")
                 .append(OUTPUT_FPS)
-                .append(":d=")
+                .append(",trim=duration=")
                 .append(formattedDuration)
-                .append(",drawgrid=w=80:h=80:t=1:c=0xc6d7c8@0.35[map];");
+                .append(",setpts=PTS-STARTPTS[map];");
 
         for (int memberIndex = 0; memberIndex < memberCount; memberIndex++) {
             Path video = memberVideos.get(memberIndex);
@@ -292,6 +317,256 @@ public class FfmpegPozingEditor {
         }
 
         return filter.toString();
+    }
+
+    private Path createMapPanelImage(
+            PozingEditSegment segment,
+            Path output
+    ) {
+        Path imagePath = output.getParent().resolve("map-%03d.png".formatted(segment.courseSpotId()));
+        BufferedImage image = createMapPanel(segment);
+
+        try {
+            ImageIO.write(image, "png", imagePath.toFile());
+            return imagePath;
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
+        }
+    }
+
+    private BufferedImage createMapPanel(PozingEditSegment segment) {
+        BufferedImage image = new BufferedImage(OUTPUT_WIDTH, MAP_AREA_HEIGHT, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = image.createGraphics();
+
+        try {
+            applyHighQualityRendering(graphics);
+            drawMapBackground(graphics);
+            List<MapPoint> points = calculateMapPoints(segment.routeSpots());
+            drawRoute(graphics, points);
+            drawSpotStates(graphics, points, segment.currentRouteIndex());
+            drawHeaderPill(graphics, segment.dayNumber(), segment.spotName());
+        } finally {
+            graphics.dispose();
+        }
+
+        return image;
+    }
+
+    private void applyHighQualityRendering(Graphics2D graphics) {
+        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+    }
+
+    private void drawMapBackground(Graphics2D graphics) {
+        graphics.setColor(MAP_BACKGROUND);
+        graphics.fillRect(0, 0, OUTPUT_WIDTH, MAP_AREA_HEIGHT);
+
+        graphics.setColor(MAP_WATER);
+        graphics.fillOval(-130, 190, 360, 270);
+        graphics.fillOval(460, 165, 310, 240);
+        graphics.fillOval(210, 330, 380, 180);
+
+        graphics.setStroke(new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        graphics.setColor(new Color(222, 226, 224));
+        for (int x = -80; x < OUTPUT_WIDTH + 120; x += 85) {
+            graphics.drawLine(x, 0, x + 160, MAP_AREA_HEIGHT);
+        }
+        for (int y = 20; y < MAP_AREA_HEIGHT; y += 78) {
+            graphics.drawLine(0, y, OUTPUT_WIDTH, y - 80);
+        }
+
+        graphics.setStroke(new BasicStroke(5.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        graphics.setColor(MAP_ROAD);
+        graphics.drawLine(-40, 130, 270, 230);
+        graphics.drawLine(240, 225, 760, 145);
+        graphics.drawLine(80, 415, 710, 270);
+
+        graphics.setStroke(new BasicStroke(7.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        graphics.setColor(new Color(255, 230, 112, 160));
+        graphics.drawLine(255, -20, 420, 500);
+    }
+
+    private List<MapPoint> calculateMapPoints(List<RouteSpot> routeSpots) {
+        List<RouteSpot> spotsWithCoordinates = routeSpots.stream()
+                .filter(RouteSpot::hasCoordinates)
+                .toList();
+
+        if (spotsWithCoordinates.size() != routeSpots.size()) {
+            return calculateFallbackMapPoints(routeSpots);
+        }
+
+        double minLatitude = routeSpots.stream().mapToDouble(RouteSpot::latitude).min().orElse(0);
+        double maxLatitude = routeSpots.stream().mapToDouble(RouteSpot::latitude).max().orElse(0);
+        double minLongitude = routeSpots.stream().mapToDouble(RouteSpot::longitude).min().orElse(0);
+        double maxLongitude = routeSpots.stream().mapToDouble(RouteSpot::longitude).max().orElse(0);
+
+        double latitudeSpan = Math.max(0.000001, maxLatitude - minLatitude);
+        double longitudeSpan = Math.max(0.000001, maxLongitude - minLongitude);
+        int paddingX = 90;
+        int paddingTop = 125;
+        int paddingBottom = 55;
+        int drawableWidth = OUTPUT_WIDTH - paddingX * 2;
+        int drawableHeight = MAP_AREA_HEIGHT - paddingTop - paddingBottom;
+
+        List<MapPoint> points = new ArrayList<>();
+        for (int index = 0; index < routeSpots.size(); index++) {
+            RouteSpot spot = routeSpots.get(index);
+            double normalizedX = (spot.longitude() - minLongitude) / longitudeSpan;
+            double normalizedY = (maxLatitude - spot.latitude()) / latitudeSpan;
+            int x = (int) Math.round(paddingX + normalizedX * drawableWidth);
+            int y = (int) Math.round(paddingTop + normalizedY * drawableHeight);
+            points.add(new MapPoint(x, y, index));
+        }
+
+        return points;
+    }
+
+    private List<MapPoint> calculateFallbackMapPoints(List<RouteSpot> routeSpots) {
+        List<MapPoint> points = new ArrayList<>();
+        int count = Math.max(1, routeSpots.size());
+
+        for (int index = 0; index < routeSpots.size(); index++) {
+            double progress = count == 1 ? 0.5 : (double) index / (count - 1);
+            int x = (int) Math.round(95 + progress * (OUTPUT_WIDTH - 190));
+            int y = (int) Math.round(360 - Math.sin(progress * Math.PI) * 170);
+            points.add(new MapPoint(x, y, index));
+        }
+
+        return points;
+    }
+
+    private void drawRoute(Graphics2D graphics, List<MapPoint> points) {
+        if (points.size() < 2) {
+            return;
+        }
+
+        graphics.setColor(new Color(MAP_ROUTE.getRed(), MAP_ROUTE.getGreen(), MAP_ROUTE.getBlue(), 180));
+        graphics.setStroke(new BasicStroke(4.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+        for (int index = 0; index < points.size() - 1; index++) {
+            MapPoint start = points.get(index);
+            MapPoint end = points.get(index + 1);
+            graphics.drawLine(start.x(), start.y(), end.x(), end.y());
+        }
+    }
+
+    private void drawSpotStates(
+            Graphics2D graphics,
+            List<MapPoint> points,
+            int currentRouteIndex
+    ) {
+        for (MapPoint point : points) {
+            if (point.routeIndex() < currentRouteIndex) {
+                drawVisitedSpot(graphics, point);
+            } else if (point.routeIndex() == currentRouteIndex) {
+                drawCurrentSpot(graphics, point);
+            } else {
+                drawUpcomingSpot(graphics, point);
+            }
+        }
+    }
+
+    private void drawVisitedSpot(Graphics2D graphics, MapPoint point) {
+        graphics.setColor(MAP_VISITED);
+        graphics.fillOval(point.x() - 13, point.y() - 13, 26, 26);
+    }
+
+    private void drawCurrentSpot(Graphics2D graphics, MapPoint point) {
+        int pinWidth = 48;
+        int pinHeight = 62;
+        int x = point.x();
+        int y = point.y();
+
+        graphics.setPaint(new GradientPaint(x - 18, y - pinHeight, new Color(0, 151, 255), x + 16, y, new Color(0, 107, 235)));
+        graphics.fillOval(x - pinWidth / 2, y - pinHeight, pinWidth, pinWidth);
+        graphics.fillPolygon(
+                new int[]{x - 15, x + 15, x},
+                new int[]{y - 23, y - 23, y + 3},
+                3
+        );
+
+        graphics.setColor(Color.WHITE);
+        graphics.fillOval(x - 9, y - pinHeight + 15, 18, 18);
+    }
+
+    private void drawUpcomingSpot(Graphics2D graphics, MapPoint point) {
+        graphics.setColor(MAP_UPCOMING);
+        graphics.fillOval(point.x() - 14, point.y() - 14, 28, 28);
+        graphics.setStroke(new BasicStroke(4.0f));
+        graphics.setColor(MAP_ROUTE);
+        graphics.drawOval(point.x() - 14, point.y() - 14, 28, 28);
+    }
+
+    private void drawHeaderPill(
+            Graphics2D graphics,
+            Integer dayNumber,
+            String spotName
+    ) {
+        String dayText = "Day " + (dayNumber == null ? "-" : dayNumber);
+        String nameText = spotName == null || spotName.isBlank() ? "장소" : spotName;
+        Font dayFont = new Font(NICKNAME_FONT, Font.BOLD, 34);
+        Font nameFont = new Font(NICKNAME_FONT, Font.BOLD, 32);
+
+        FontMetrics dayMetrics = graphics.getFontMetrics(dayFont);
+        FontMetrics nameMetrics = graphics.getFontMetrics(nameFont);
+        int iconWidth = 34;
+        int gap = 22;
+        int contentWidth = dayMetrics.stringWidth(dayText) + iconWidth + nameMetrics.stringWidth(nameText) + gap * 3;
+        int pillWidth = Math.min(620, Math.max(330, contentWidth + 42));
+        int pillHeight = 74;
+        int pillX = (OUTPUT_WIDTH - pillWidth) / 2;
+        int pillY = 36;
+
+        graphics.setColor(new Color(0, 0, 0, 28));
+        graphics.fillRoundRect(pillX + 4, pillY + 8, pillWidth, pillHeight, pillHeight, pillHeight);
+        graphics.setColor(new Color(255, 255, 255, 245));
+        graphics.fillRoundRect(pillX, pillY, pillWidth, pillHeight, pillHeight, pillHeight);
+
+        int baseline = pillY + 49;
+        int cursor = pillX + 42;
+        graphics.setFont(dayFont);
+        graphics.setColor(new Color(103, 99, 255));
+        graphics.drawString(dayText, cursor, baseline);
+        cursor += dayMetrics.stringWidth(dayText) + gap;
+
+        drawPinIcon(graphics, cursor + 14, pillY + 38);
+        cursor += iconWidth + gap;
+
+        graphics.setFont(nameFont);
+        graphics.setColor(MAP_TEXT);
+        graphics.drawString(fitText(graphics, nameText, nameFont, pillX + pillWidth - cursor - 32), cursor, baseline);
+    }
+
+    private void drawPinIcon(Graphics2D graphics, int centerX, int centerY) {
+        graphics.setColor(new Color(103, 99, 255));
+        graphics.fillOval(centerX - 13, centerY - 19, 26, 26);
+        graphics.fillPolygon(
+                new int[]{centerX - 8, centerX + 8, centerX},
+                new int[]{centerY, centerY, centerY + 18},
+                3
+        );
+        graphics.setColor(Color.WHITE);
+        graphics.fillOval(centerX - 5, centerY - 11, 10, 10);
+    }
+
+    private String fitText(
+            Graphics2D graphics,
+            String text,
+            Font font,
+            int maxWidth
+    ) {
+        graphics.setFont(font);
+        if (graphics.getFontMetrics().stringWidth(text) <= maxWidth) {
+            return text;
+        }
+
+        String ellipsis = "...";
+        String fitted = text;
+        while (!fitted.isEmpty() && graphics.getFontMetrics().stringWidth(fitted + ellipsis) > maxWidth) {
+            fitted = fitted.substring(0, fitted.length() - 1);
+        }
+
+        return fitted + ellipsis;
     }
 
     private void concatSegments(
@@ -609,8 +884,32 @@ public class FfmpegPozingEditor {
 
     public record PozingEditSegment(
             Long courseSpotId,
+            Integer dayNumber,
+            String spotName,
+            List<RouteSpot> routeSpots,
+            int currentRouteIndex,
             List<Path> memberVideos,
             List<String> memberNicknames
+    ) {
+    }
+
+    public record RouteSpot(
+            Long courseSpotId,
+            Integer dayNumber,
+            String name,
+            Double latitude,
+            Double longitude
+    ) {
+
+        private boolean hasCoordinates() {
+            return latitude != null && longitude != null;
+        }
+    }
+
+    private record MapPoint(
+            int x,
+            int y,
+            int routeIndex
     ) {
     }
 }
