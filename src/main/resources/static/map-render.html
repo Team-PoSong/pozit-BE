@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Kakao Map Test</title>
+
+    <style>
+        html, body {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<script
+        type="text/javascript"
+        src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=c2adf5d78200719744e4aca17bcc26dd&autoload=false">
+</script>
+
+<script>
+    kakao.maps.load(function () {
+
+        const position = new kakao.maps.LatLng(
+            37.579617,
+            126.977041
+        );
+
+        const map = new kakao.maps.Map(
+            document.getElementById("map"),
+            {
+                center: position,
+                level: 4
+            }
+        );
+
+        const marker = new kakao.maps.Marker({
+            position: position
+        });
+
+        marker.setMap(map);
+
+        console.log("Kakao Map render complete");
+    });
+</script>
+
+</body>
+</html>
