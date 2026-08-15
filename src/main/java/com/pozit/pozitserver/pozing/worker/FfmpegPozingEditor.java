@@ -3,6 +3,7 @@ package com.pozit.pozitserver.pozing.worker;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -34,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class FfmpegPozingEditor {
 
     private static final int OUTPUT_WIDTH = 720;
@@ -417,6 +419,7 @@ public class FfmpegPozingEditor {
 
         String chromePath = resolveChromePath();
         if (chromePath == null) {
+            log.warn("Map screenshot skipped because Chrome/Chromium executable was not found. configuredChromePath={}", configuredChromePath);
             return false;
         }
 
@@ -431,6 +434,7 @@ public class FfmpegPozingEditor {
                 "--headless=new",
                 "--disable-gpu",
                 "--no-sandbox",
+                "--disable-dev-shm-usage",
                 "--hide-scrollbars",
                 "--window-size=%d,%d".formatted(OUTPUT_WIDTH, MAP_AREA_HEIGHT),
                 "--virtual-time-budget=5000",
@@ -441,7 +445,15 @@ public class FfmpegPozingEditor {
         try {
             runScreenshotCommand(command);
             return Files.exists(imagePath) && Files.size(imagePath) > 0;
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn(
+                    "Map screenshot failed. jobId={}, courseSpotId={}, url={}, chromePath={}",
+                    jobId,
+                    segment.courseSpotId(),
+                    url,
+                    chromePath,
+                    e
+            );
             return false;
         }
     }
