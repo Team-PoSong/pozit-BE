@@ -23,6 +23,7 @@ public class SecurityConfig {
     private static final String[] WHITE_LIST = {
             "/",
             "/map-render.html",
+            "/just_posong.png",
             "/swagger-ui/**",
             "/v3/api-docs/**",
             "/swagger-ui.html",

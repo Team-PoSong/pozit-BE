@@ -68,7 +68,7 @@ public class PozingEditJobProcessor {
                 throw new BusinessException(ErrorCode.POZING_VIDEO_NOT_FOUND);
             }
 
-            Path editedVideo = ffmpegPozingEditor.edit(segments, memberCount, workDirectory);
+            Path editedVideo = ffmpegPozingEditor.edit(jobId, segments, memberCount, workDirectory);
             String resultS3Key = pozingEditS3Storage.uploadEditedVideo(jobId, editedVideo);
             completeJob(jobId, resultS3Key);
         } finally {
