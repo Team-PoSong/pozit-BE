@@ -2,25 +2,160 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Kakao Map Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pozit Map Render</title>
 
     <style>
-        html, body {
+        :root {
+            --panel-bg: rgba(255, 255, 255, 0.94);
+            --panel-border: rgba(28, 35, 54, 0.14);
+            --text: #1b2537;
+            --muted: #667085;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
             margin: 0;
             width: 100%;
             height: 100%;
+            color: var(--text);
+            font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
 
         #map {
             width: 100%;
             height: 100%;
         }
+
+        .toolbar {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 10;
+            display: flex;
+            max-width: calc(100vw - 32px);
+            align-items: center;
+            gap: 8px;
+            padding: 10px;
+            overflow-x: auto;
+            border: 1px solid var(--panel-border);
+            border-radius: 8px;
+            background: var(--panel-bg);
+            box-shadow: 0 10px 30px rgba(18, 26, 38, 0.14);
+            backdrop-filter: blur(12px);
+        }
+
+        .day-button {
+            min-width: 58px;
+            height: 34px;
+            padding: 0 12px;
+            border: 1px solid rgba(28, 35, 54, 0.12);
+            border-radius: 8px;
+            background: #ffffff;
+            color: var(--text);
+            font: inherit;
+            font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+
+        .day-button[aria-pressed="true"] {
+            border-color: var(--day-color);
+            background: var(--day-color);
+            color: #ffffff;
+        }
+
+        .status {
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            z-index: 10;
+            max-width: min(420px, calc(100vw - 32px));
+            padding: 12px 14px;
+            border: 1px solid var(--panel-border);
+            border-radius: 8px;
+            background: var(--panel-bg);
+            color: var(--muted);
+            box-shadow: 0 10px 30px rgba(18, 26, 38, 0.12);
+            font-size: 13px;
+            line-height: 1.45;
+            backdrop-filter: blur(12px);
+        }
+
+        .spot-marker {
+            position: relative;
+            display: grid;
+            min-width: 46px;
+            height: 46px;
+            place-items: center;
+            padding: 0 9px;
+            border: 3px solid #ffffff;
+            border-radius: 999px 999px 999px 4px;
+            background: var(--day-color);
+            box-shadow: 0 10px 24px rgba(18, 26, 38, 0.24);
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: 800;
+            line-height: 1;
+            transform: rotate(-45deg);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .spot-marker span {
+            transform: rotate(45deg);
+            white-space: nowrap;
+        }
+
+        .spot-marker.is-muted {
+            opacity: 0.25;
+        }
+
+        .spot-label {
+            position: absolute;
+            left: 50%;
+            top: 52px;
+            max-width: 180px;
+            padding: 6px 8px;
+            border: 1px solid rgba(28, 35, 54, 0.12);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.96);
+            color: var(--text);
+            box-shadow: 0 8px 18px rgba(18, 26, 38, 0.14);
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.3;
+            text-align: center;
+            transform: translateX(-50%) rotate(45deg);
+            white-space: normal;
+        }
+
+        @media (max-width: 640px) {
+            .toolbar {
+                top: 10px;
+                left: 10px;
+                max-width: calc(100vw - 20px);
+                padding: 8px;
+            }
+
+            .status {
+                right: 10px;
+                bottom: 10px;
+                max-width: calc(100vw - 20px);
+            }
+        }
     </style>
 </head>
 
 <body>
-
 <div id="map"></div>
+<div id="toolbar" class="toolbar" hidden></div>
+<div id="status" class="status">manifest를 불러오는 중입니다.</div>
 
 <script
         type="text/javascript"
@@ -28,29 +163,242 @@
 </script>
 
 <script>
-    kakao.maps.load(function () {
+    const DAY_COLORS = [
+        "#2563eb",
+        "#dc2626",
+        "#059669",
+        "#d97706",
+        "#7c3aed",
+        "#0891b2",
+        "#be123c",
+        "#4d7c0f"
+    ];
 
-        const position = new kakao.maps.LatLng(
-            37.579617,
-            126.977041
-        );
+    const DEFAULT_CENTER = {
+        latitude: 37.579617,
+        longitude: 126.977041
+    };
 
-        const map = new kakao.maps.Map(
+    const params = new URLSearchParams(window.location.search);
+    const toolbar = document.getElementById("toolbar");
+    const statusBox = document.getElementById("status");
+    const overlays = [];
+    let map;
+    let activeDay = "all";
+    let normalizedCourses = [];
+
+    kakao.maps.load(async function () {
+        map = new kakao.maps.Map(
             document.getElementById("map"),
             {
-                center: position,
+                center: new kakao.maps.LatLng(DEFAULT_CENTER.latitude, DEFAULT_CENTER.longitude),
                 level: 4
             }
         );
 
-        const marker = new kakao.maps.Marker({
-            position: position
+        try {
+            const manifest = await loadManifest();
+            normalizedCourses = normalizeCourses(manifest);
+            renderDayControls(normalizedCourses);
+            renderMarkers(normalizedCourses);
+            applyDayFilter("all");
+            updateStatus(normalizedCourses);
+            console.log("Kakao Map render complete", manifest);
+        } catch (error) {
+            console.error(error);
+            statusBox.textContent = error.message;
+        }
+    });
+
+    async function loadManifest() {
+        const inlineManifest = window.TIMELAPSE_MANIFEST;
+        if (inlineManifest) {
+            return inlineManifest;
+        }
+
+        const manifestUrl = params.get("manifestUrl");
+        if (manifestUrl) {
+            return fetchJson(manifestUrl);
+        }
+
+        const jobId = params.get("jobId");
+        if (jobId) {
+            return fetchJson(`/api/pozing/edit-jobs/${encodeURIComponent(jobId)}/map-manifest`);
+        }
+
+        throw new Error("jobId 또는 manifestUrl 쿼리 파라미터가 필요합니다.");
+    }
+
+    async function fetchJson(url) {
+        const response = await fetch(url, {
+            headers: {
+                "Accept": "application/json"
+            }
         });
 
-        marker.setMap(map);
+        if (!response.ok) {
+            throw new Error(`manifest 요청 실패: ${response.status}`);
+        }
 
-        console.log("Kakao Map render complete");
-    });
+        const body = await response.json();
+        return body.result ?? body;
+    }
+
+    function normalizeCourses(manifest) {
+        const courses = Array.isArray(manifest?.courses) ? manifest.courses : [];
+
+        return courses
+            .map((course) => ({
+                courseId: course.courseId,
+                dayNumber: Number(course.dayNumber),
+                color: dayColor(Number(course.dayNumber)),
+                spots: normalizeSpots(course)
+            }))
+            .filter((course) => Number.isFinite(course.dayNumber) && course.spots.length > 0)
+            .sort((a, b) => a.dayNumber - b.dayNumber);
+    }
+
+    function normalizeSpots(course) {
+        const spots = Array.isArray(course?.spots) ? course.spots : [];
+
+        return spots
+            .map((spot) => ({
+                courseSpotId: spot.courseSpotId,
+                name: spot.name || "이름 없음",
+                orderIndex: Number(spot.orderIndex),
+                latitude: Number(spot.latitude),
+                longitude: Number(spot.longitude)
+            }))
+            .filter((spot) => Number.isFinite(spot.latitude) && Number.isFinite(spot.longitude))
+            .sort((a, b) => a.orderIndex - b.orderIndex);
+    }
+
+    function renderDayControls(courses) {
+        toolbar.replaceChildren();
+        if (courses.length === 0) {
+            toolbar.hidden = true;
+            return;
+        }
+
+        toolbar.hidden = false;
+        toolbar.appendChild(createDayButton("all", "전체", "#111827"));
+
+        for (const course of courses) {
+            toolbar.appendChild(createDayButton(course.dayNumber, `Day ${course.dayNumber}`, course.color));
+        }
+    }
+
+    function createDayButton(day, label, color) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "day-button";
+        button.textContent = label;
+        button.style.setProperty("--day-color", color);
+        button.setAttribute("aria-pressed", String(day === activeDay));
+        button.addEventListener("click", () => applyDayFilter(day));
+        return button;
+    }
+
+    function renderMarkers(courses) {
+        clearMarkers();
+
+        for (const course of courses) {
+            for (const spot of course.spots) {
+                const position = new kakao.maps.LatLng(spot.latitude, spot.longitude);
+                const markerElement = createMarkerElement(course, spot);
+                const overlay = new kakao.maps.CustomOverlay({
+                    position,
+                    content: markerElement,
+                    yAnchor: 1
+                });
+
+                overlay.dayNumber = course.dayNumber;
+                overlay.position = position;
+                overlay.setMap(map);
+                overlays.push(overlay);
+            }
+        }
+    }
+
+    function createMarkerElement(course, spot) {
+        const marker = document.createElement("div");
+        marker.className = "spot-marker";
+        marker.style.setProperty("--day-color", course.color);
+        marker.title = `Day ${course.dayNumber} ${spot.orderIndex}. ${spot.name}`;
+
+        const number = document.createElement("span");
+        number.textContent = `D${course.dayNumber}-${spot.orderIndex}`;
+        marker.appendChild(number);
+
+        const label = document.createElement("div");
+        label.className = "spot-label";
+        label.textContent = spot.name;
+        marker.appendChild(label);
+
+        return marker;
+    }
+
+    function applyDayFilter(day) {
+        activeDay = day;
+        const visiblePositions = [];
+
+        for (const overlay of overlays) {
+            const isVisible = day === "all" || overlay.dayNumber === day;
+            overlay.setMap(isVisible ? map : null);
+            if (isVisible) {
+                visiblePositions.push(overlay.position);
+            }
+        }
+
+        for (const button of toolbar.querySelectorAll(".day-button")) {
+            const isPressed = button.textContent === "전체"
+                ? day === "all"
+                : button.textContent === `Day ${day}`;
+            button.setAttribute("aria-pressed", String(isPressed));
+        }
+
+        fitMap(visiblePositions);
+    }
+
+    function fitMap(positions) {
+        if (positions.length === 0) {
+            return;
+        }
+
+        if (positions.length === 1) {
+            map.setCenter(positions[0]);
+            map.setLevel(4);
+            return;
+        }
+
+        const bounds = new kakao.maps.LatLngBounds();
+        for (const position of positions) {
+            bounds.extend(position);
+        }
+        map.setBounds(bounds, 80, 80, 80, 80);
+    }
+
+    function updateStatus(courses) {
+        const spotCount = courses.reduce((total, course) => total + course.spots.length, 0);
+        if (spotCount === 0) {
+            statusBox.textContent = "표시할 courseSpot 좌표가 없습니다.";
+            return;
+        }
+
+        statusBox.textContent = `${courses.length}개 day, ${spotCount}개 courseSpot을 표시했습니다.`;
+    }
+
+    function clearMarkers() {
+        for (const overlay of overlays) {
+            overlay.setMap(null);
+        }
+        overlays.length = 0;
+    }
+
+    function dayColor(dayNumber) {
+        const index = Math.abs(dayNumber - 1) % DAY_COLORS.length;
+        return DAY_COLORS[index];
+    }
 </script>
 
 </body>

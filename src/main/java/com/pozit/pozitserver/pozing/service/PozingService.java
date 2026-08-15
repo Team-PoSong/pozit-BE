@@ -17,6 +17,7 @@ import com.pozit.pozitserver.pozing.domain.TimelapseManifest;
 import com.pozit.pozitserver.pozing.dto.request.PozingSaveRequest;
 import com.pozit.pozitserver.pozing.dto.response.PozingEditJobCreateResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingEditJobStatusResponse;
+import com.pozit.pozitserver.pozing.dto.response.PozingMapManifestResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingPresignedUrlResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingSaveResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingThumbnailStatusResponse;
@@ -215,6 +216,31 @@ public class PozingService {
 
     }
 
+    public PozingMapManifestResponse getMapManifest(Long jobId) {
+        TimelapseManifestPayload manifestPayload = loadManifest(jobId);
+
+        return new PozingMapManifestResponse(
+                manifestPayload.version(),
+                manifestPayload.travelId(),
+                manifestPayload.courses().stream()
+                        .map(course -> new PozingMapManifestResponse.CourseMapManifest(
+                                course.courseId(),
+                                course.dayNumber(),
+                                course.spots().stream()
+                                        .map(spot -> new PozingMapManifestResponse.SpotMapManifest(
+                                                spot.courseSpotId(),
+                                                spot.touristSpotId(),
+                                                spot.name(),
+                                                spot.orderIndex(),
+                                                spot.latitude(),
+                                                spot.longitude()
+                                        ))
+                                        .toList()
+                        ))
+                        .toList()
+        );
+    }
+
     private void validateMember(CourseSpot courseSpot, User user) {
         validateMember(courseSpot.getCourse().getTravel(), user);
     }
@@ -241,6 +267,20 @@ public class PozingService {
     private String serializeManifest(TimelapseManifestPayload manifestPayload) {
         try {
             return OBJECT_MAPPER.writeValueAsString(manifestPayload);
+        } catch (JsonProcessingException e) {
+            throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
+        }
+    }
+
+    private TimelapseManifestPayload loadManifest(Long jobId) {
+        TimelapseManifest manifest = timelapseManifestRepository.findByPozingEditJob_Id(jobId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POZING_EDIT_JOB_NOT_FOUND));
+
+        try {
+            return OBJECT_MAPPER.readValue(
+                    manifest.getManifestJson(),
+                    TimelapseManifestPayload.class
+            );
         } catch (JsonProcessingException e) {
             throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
         }

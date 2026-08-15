@@ -5,6 +5,7 @@ import com.pozit.pozitserver.global.response.SuccessResponse;
 import com.pozit.pozitserver.pozing.dto.request.PozingSaveRequest;
 import com.pozit.pozitserver.pozing.dto.response.PozingEditJobCreateResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingEditJobStatusResponse;
+import com.pozit.pozitserver.pozing.dto.response.PozingMapManifestResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingPresignedUrlResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingSaveResponse;
 import com.pozit.pozitserver.pozing.dto.response.PozingThumbnailStatusResponse;
@@ -61,6 +62,14 @@ public class PozingController {
             @PathVariable Long jobId
     ) {
         return SuccessResponse.ok(pozingService.getEditPozingJob(user, jobId));
+    }
+
+    @GetMapping("/edit-jobs/{jobId}/map-manifest")
+    @Operation(summary = "지도 렌더링용 manifest 조회", description = "저장된 포징 편집 manifest에서 day별 코스 장소 좌표만 조회합니다.")
+    public SuccessResponse<PozingMapManifestResponse> getMapManifest(
+            @PathVariable Long jobId
+    ) {
+        return SuccessResponse.ok(pozingService.getMapManifest(jobId));
     }
 
     @GetMapping("/{pozingId}/thumbnail")
