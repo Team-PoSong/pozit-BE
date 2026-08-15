@@ -21,6 +21,8 @@ public class FfmpegPozingEditor {
 
     private static final int OUTPUT_WIDTH = 720;
     private static final int OUTPUT_HEIGHT = 1280;
+    private static final int MAP_AREA_HEIGHT = 480;
+    private static final int VIDEO_AREA_HEIGHT = OUTPUT_HEIGHT - MAP_AREA_HEIGHT;
     private static final int OUTPUT_FPS = 30;
     private static final double MIN_SEGMENT_DURATION_SECONDS = 0.1;
     private static final long FFMPEG_TIMEOUT_SECONDS = 120;
@@ -43,12 +45,11 @@ public class FfmpegPozingEditor {
             throw new IllegalArgumentException("Pozing edit member count must be positive.");
         }
 
-        int tileHeight = calculateEvenTileHeight(memberCount);
         List<Path> segmentOutputs = new ArrayList<>();
 
         for (int i = 0; i < segments.size(); i++) {
             Path segmentOutput = workDirectory.resolve("segment-%03d.mp4".formatted(i));
-            createStackedSegment(segments.get(i), memberCount, tileHeight, segmentOutput);
+            createStackedSegment(segments.get(i), memberCount, segmentOutput);
             segmentOutputs.add(segmentOutput);
         }
 
@@ -60,7 +61,6 @@ public class FfmpegPozingEditor {
     private void createStackedSegment(
             PozingEditSegment segment,
             int memberCount,
-            int tileHeight,
             Path output
     ) {
         double duration = calculateSegmentDuration(segment.memberVideos());
@@ -75,7 +75,7 @@ public class FfmpegPozingEditor {
             }
         }
 
-        String filterComplex = buildStackFilter(segment.memberVideos(), memberCount, tileHeight, duration);
+        String filterComplex = buildStackFilter(segment.memberVideos(), memberCount, duration);
         command.add("-filter_complex");
         command.add(filterComplex);
         command.add("-map");
@@ -110,24 +110,46 @@ public class FfmpegPozingEditor {
     private String buildStackFilter(
             List<Path> memberVideos,
             int memberCount,
-            int tileHeight,
             double duration
     ) {
         StringBuilder filter = new StringBuilder();
         int inputIndex = 0;
+        List<LayoutCell> videoCells = calculateVideoCells(memberCount);
+        String formattedDuration = formatDuration(duration);
+
+        filter.append("color=c=black:s=")
+                .append(OUTPUT_WIDTH)
+                .append("x")
+                .append(OUTPUT_HEIGHT)
+                .append(":r=")
+                .append(OUTPUT_FPS)
+                .append(":d=")
+                .append(formattedDuration)
+                .append("[canvas];");
+
+        filter.append("color=c=0xe8efe4:s=")
+                .append(OUTPUT_WIDTH)
+                .append("x")
+                .append(MAP_AREA_HEIGHT)
+                .append(":r=")
+                .append(OUTPUT_FPS)
+                .append(":d=")
+                .append(formattedDuration)
+                .append(",drawgrid=w=80:h=80:t=1:c=0xc6d7c8@0.35[map];");
 
         for (int memberIndex = 0; memberIndex < memberCount; memberIndex++) {
             Path video = memberVideos.get(memberIndex);
+            LayoutCell cell = videoCells.get(memberIndex);
 
             if (video == null) {
                 filter.append("color=c=black:s=")
-                        .append(OUTPUT_WIDTH)
+                        .append(cell.width())
                         .append("x")
-                        .append(tileHeight)
+                        .append(cell.height())
                         .append(":r=")
                         .append(OUTPUT_FPS)
                         .append(":d=")
-                        .append(formatDuration(duration))
+                        .append(formattedDuration)
                         .append(",format=yuv420p,setpts=PTS-STARTPTS[v")
                         .append(memberIndex)
                         .append("];");
@@ -135,19 +157,19 @@ public class FfmpegPozingEditor {
                 filter.append("[")
                         .append(inputIndex)
                         .append(":v]scale=")
-                        .append(OUTPUT_WIDTH)
+                        .append(cell.width())
                         .append(":")
-                        .append(tileHeight)
+                        .append(cell.height())
                         .append(":force_original_aspect_ratio=increase,crop=")
-                        .append(OUTPUT_WIDTH)
+                        .append(cell.width())
                         .append(":")
-                        .append(tileHeight)
+                        .append(cell.height())
                         .append(",setsar=1,fps=")
                         .append(OUTPUT_FPS)
                         .append(",tpad=stop_mode=clone:stop_duration=")
-                        .append(formatDuration(duration))
+                        .append(formattedDuration)
                         .append(",trim=duration=")
-                        .append(formatDuration(duration))
+                        .append(formattedDuration)
                         .append(",setpts=PTS-STARTPTS[v")
                         .append(memberIndex)
                         .append("];");
@@ -155,18 +177,33 @@ public class FfmpegPozingEditor {
             }
         }
 
-        if (memberCount == 1) {
-            filter.append("[v0]copy[outv]");
-            return filter.toString();
-        }
+        String previousLabel = "base0";
+        filter.append("[canvas][map]overlay=0:0[")
+                .append(previousLabel)
+                .append("];");
 
         for (int memberIndex = 0; memberIndex < memberCount; memberIndex++) {
-            filter.append("[v").append(memberIndex).append("]");
-        }
+            LayoutCell cell = videoCells.get(memberIndex);
+            String outputLabel = memberIndex == memberCount - 1 ? "outv" : "base" + (memberIndex + 1);
 
-        filter.append("vstack=inputs=")
-                .append(memberCount)
-                .append("[outv]");
+            filter.append("[")
+                    .append(previousLabel)
+                    .append("][v")
+                    .append(memberIndex)
+                    .append("]overlay=")
+                    .append(cell.x())
+                    .append(":")
+                    .append(cell.y())
+                    .append("[")
+                    .append(outputLabel)
+                    .append("]");
+
+            if (memberIndex < memberCount - 1) {
+                filter.append(";");
+            }
+
+            previousLabel = outputLabel;
+        }
 
         return filter.toString();
     }
@@ -264,13 +301,49 @@ public class FfmpegPozingEditor {
         }
     }
 
+    static List<LayoutCell> calculateVideoCells(int memberCount) {
+        if (memberCount <= 0) {
+            throw new IllegalArgumentException("Pozing edit member count must be positive.");
+        }
 
-    private int calculateEvenTileHeight(int memberCount) {
-        return Math.max(2, (OUTPUT_HEIGHT / memberCount) / 2 * 2);
+        int columns = memberCount >= 4 ? 2 : 1;
+        int rows = (int) Math.ceil((double) memberCount / columns);
+        int cellWidth = evenFloor(OUTPUT_WIDTH / columns);
+        int baseCellHeight = evenFloor(VIDEO_AREA_HEIGHT / rows);
+
+        List<LayoutCell> cells = new ArrayList<>();
+        for (int index = 0; index < memberCount; index++) {
+            int row = index / columns;
+            int column = index % columns;
+            int height = row == rows - 1
+                    ? VIDEO_AREA_HEIGHT - baseCellHeight * row
+                    : baseCellHeight;
+
+            cells.add(new LayoutCell(
+                    column * cellWidth,
+                    MAP_AREA_HEIGHT + baseCellHeight * row,
+                    cellWidth,
+                    height
+            ));
+        }
+
+        return cells;
+    }
+
+    private static int evenFloor(int value) {
+        return Math.max(2, value / 2 * 2);
     }
 
     private String formatDuration(double duration) {
         return String.format(Locale.US, "%.3f", duration);
+    }
+
+    record LayoutCell(
+            int x,
+            int y,
+            int width,
+            int height
+    ) {
     }
 
     public record PozingEditSegment(
