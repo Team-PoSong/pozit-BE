@@ -172,11 +172,6 @@
 <div id="toolbar" class="toolbar" hidden></div>
 <div id="status" class="status">manifest를 불러오는 중입니다.</div>
 
-<script
-        type="text/javascript"
-        src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=c2adf5d78200719744e4aca17bcc26dd&autoload=false">
-</script>
-
 <script>
     const DAY_COLORS = [
         "#2563eb",
@@ -209,7 +204,8 @@
         document.body.classList.add("is-capture");
     }
 
-    kakao.maps.load(async function () {
+    loadKakaoMapsSdk()
+        .then(() => kakao.maps.load(async function () {
         map = new kakao.maps.Map(
             document.getElementById("map"),
             {
@@ -233,7 +229,28 @@
             console.error(error);
             statusBox.textContent = error.message;
         }
-    });
+    }))
+        .catch((error) => {
+            console.error(error);
+            statusBox.textContent = error.message;
+        });
+
+    async function loadKakaoMapsSdk() {
+        const config = await fetchJson("/api/map-render/config");
+        const kakaoJavaScriptKey = config.kakaoJavaScriptKey;
+        if (!kakaoJavaScriptKey) {
+            throw new Error("Kakao Map JavaScript key가 설정되지 않았습니다.");
+        }
+
+        return new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.type = "text/javascript";
+            script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(kakaoJavaScriptKey)}&autoload=false`;
+            script.onload = resolve;
+            script.onerror = () => reject(new Error("Kakao Map SDK 로드에 실패했습니다."));
+            document.head.appendChild(script);
+        });
+    }
 
     async function loadManifest() {
         const inlineManifest = window.TIMELAPSE_MANIFEST;
