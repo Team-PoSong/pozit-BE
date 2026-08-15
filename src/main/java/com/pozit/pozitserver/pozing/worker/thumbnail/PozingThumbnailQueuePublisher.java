@@ -1,4 +1,4 @@
-package com.pozit.pozitserver.pozing.worker;
+package com.pozit.pozitserver.pozing.worker.thumbnail;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.connection.stream.MapRecord;

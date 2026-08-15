@@ -31,6 +31,7 @@ public interface CourseSpotRepository extends JpaRepository<CourseSpot, Long> {
             select cs
             from CourseSpot cs
             join fetch cs.course c
+            join fetch cs.touristSpot
             where c.travel.id = :travelId
             order by c.dayNumber asc, cs.orderIndex asc, cs.id asc
             """)
