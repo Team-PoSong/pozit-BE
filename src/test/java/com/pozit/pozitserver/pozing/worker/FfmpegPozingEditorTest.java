@@ -2,6 +2,8 @@ package com.pozit.pozitserver.pozing.worker;
 
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -59,6 +61,34 @@ class FfmpegPozingEditorTest {
                 new FfmpegPozingEditor.LayoutCell(360, 746, 360, 266),
                 new FfmpegPozingEditor.LayoutCell(0, 1012, 360, 268)
         );
+    }
+
+    @Test
+    void missingMemberVideoUsesSleepingPozitPlaceholderAndKeepsNickname() {
+        FfmpegPozingEditor editor = new FfmpegPozingEditor();
+
+        String filter = editor.buildStackFilter(
+                Arrays.asList(Path.of("member-0.mp4"), null),
+                List.of(Path.of("nickname-0.png"), Path.of("nickname-1.png")),
+                2,
+                3.0
+        );
+
+        assertThat(filter)
+                .contains("color=c=black:s=720x400:r=30:d=3.000,format=yuv420p,setpts=PTS-STARTPTS[empty1];")
+                .contains("[1:v]scale=200:200:force_original_aspect_ratio=decrease")
+                .contains("[empty1][icon1]overlay=(W-w)/2:(H-h)/2,format=yuv420p[v1base];")
+                .contains("[3:v]format=rgba,fps=30,trim=duration=3.000,setpts=PTS-STARTPTS[label1];")
+                .contains("[v1base][label1]overlay=40:H-h-40:format=auto,format=yuv420p[v1];");
+    }
+
+    @Test
+    void segmentWithNoMemberVideosLastsThreeSeconds() {
+        FfmpegPozingEditor editor = new FfmpegPozingEditor();
+
+        double duration = editor.calculateSegmentDuration(Arrays.asList(null, null));
+
+        assertThat(duration).isEqualTo(3.0);
     }
 
 }

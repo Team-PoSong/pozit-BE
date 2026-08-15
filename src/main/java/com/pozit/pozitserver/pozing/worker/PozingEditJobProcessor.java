@@ -134,7 +134,7 @@ public class PozingEditJobProcessor {
         return downloadedVideos;
     }
 
-    private List<FfmpegPozingEditor.PozingEditSegment> createEditSegments(
+    List<FfmpegPozingEditor.PozingEditSegment> createEditSegments(
             TimelapseManifestPayload manifest,
             Map<PozingSlot, Path> downloadedVideos
     ) {
@@ -146,7 +146,6 @@ public class PozingEditJobProcessor {
             for (TimelapseManifestPayload.SpotManifest spot : course.spots()) {
                 List<Path> memberVideos = new ArrayList<>();
                 List<String> memberNicknames = new ArrayList<>();
-                boolean hasAnyVideo = false;
 
                 for (TimelapseManifestPayload.MemberPozingManifest pozing : spot.pozings()) {
                     Path video = downloadedVideos.get(new PozingSlot(
@@ -154,25 +153,19 @@ public class PozingEditJobProcessor {
                             pozing.userId()
                     ));
 
-                    if (video != null) {
-                        hasAnyVideo = true;
-                    }
-
                     memberVideos.add(video);
                     memberNicknames.add(pozing.nickname());
                 }
 
-                if (hasAnyVideo) {
-                    segments.add(new FfmpegPozingEditor.PozingEditSegment(
-                            spot.courseSpotId(),
-                            course.dayNumber(),
-                            spot.name(),
-                            routeSpots,
-                            routeIndex,
-                            memberVideos,
-                            memberNicknames
-                    ));
-                }
+                segments.add(new FfmpegPozingEditor.PozingEditSegment(
+                        spot.courseSpotId(),
+                        course.dayNumber(),
+                        spot.name(),
+                        routeSpots,
+                        routeIndex,
+                        memberVideos,
+                        memberNicknames
+                ));
 
                 routeIndex++;
             }
@@ -254,7 +247,7 @@ public class PozingEditJobProcessor {
     ) {
     }
 
-    private record PozingSlot(
+    record PozingSlot(
             Long courseSpotId,
             Long userId
     ) {
