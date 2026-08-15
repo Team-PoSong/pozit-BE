@@ -11,9 +11,10 @@ import javax.imageio.ImageIO;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.FontFormatException;
 import java.awt.FontMetrics;
-import java.awt.GradientPaint;
 import java.awt.Graphics2D;
+import java.awt.GraphicsEnvironment;
 import java.awt.RenderingHints;
 import java.awt.font.TextAttribute;
 import java.awt.image.BufferedImage;
@@ -24,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -41,29 +43,35 @@ public class FfmpegPozingEditor {
     private static final int OUTPUT_FPS = 30;
     private static final double MIN_SEGMENT_DURATION_SECONDS = 0.1;
     private static final long FFMPEG_TIMEOUT_SECONDS = 120;
+    private static final long MAP_SCREENSHOT_TIMEOUT_SECONDS = 30;
     private static final String SLEEPING_POZIT_RESOURCE = "static/sleeping_pozit.png";
     private static final String LEGACY_SLEEPING_POZIT_RESOURCE = "static/pozit_sleeping.png";
     private static final String JUST_POSONG_RESOURCE = "static/just_posong.png";
-    private static final String NICKNAME_FONT = "Noto Sans CJK KR";
+    private static final String LOCATION_RESOURCE = "static/location.png";
     private static final String BADGE_FONT_FAMILY = "Pretendard";
     private static final String BADGE_BOLD_FONT_RESOURCE = "static/Pretendard-1.3.9/public/static/alternative/Pretendard-Bold.ttf";
     private static final String BADGE_SEMIBOLD_FONT_RESOURCE = "static/Pretendard-1.3.9/public/static/alternative/Pretendard-SemiBold.ttf";
-    private static final int NICKNAME_SHADOW_OFFSET = 2;
     private static final int BADGE_CANVAS_HEIGHT = 140;
-    private static final int BADGE_VERTICAL_PADDING = 26;
-    private static final int BADGE_HORIZONTAL_PADDING = 45;
+    private static final int BADGE_VERTICAL_PADDING = 18;
+    private static final int BADGE_HORIZONTAL_PADDING = 34;
     private static final int BADGE_ICON_SIZE = 48;
-    private static final int BADGE_DAY_TO_ICON_GAP = 65;
+    private static final int BADGE_DAY_TO_ICON_GAP = 36;
     private static final int BADGE_ICON_TO_NAME_GAP = 10;
-    private static final float BADGE_DAY_FONT_SIZE = 40.0f;
-    private static final float BADGE_PLACE_FONT_SIZE = 39.244f;
+    private static final float BADGE_DAY_FONT_SIZE = 30.0f;
+    private static final float BADGE_PLACE_FONT_SIZE = 30.0f;
+    private static final float BADGE_MIN_PLACE_FONT_SIZE = 24.0f;
     private static final Color MAP_BACKGROUND = new Color(244, 247, 245);
     private static final Color MAP_WATER = new Color(210, 232, 239);
     private static final Color MAP_ROAD = new Color(255, 255, 255, 215);
-    private static final Color MAP_ROUTE = new Color(139, 132, 255);
-    private static final Color MAP_VISITED = new Color(146, 139, 255);
-    private static final Color MAP_CURRENT = new Color(0, 139, 255);
-    private static final Color MAP_UPCOMING = new Color(255, 255, 255);
+    private static final Color MAP_ROUTE = new Color(0x9F, 0xA1, 0xFF);
+    private static final Color MAP_MARKER_SHADOW = new Color(0x9F, 0xA1, 0xFF, 102);
+    private static final Color MAP_MARKER_BACKGROUND = Color.WHITE;
+    private static final Color MAP_MARKER_SELECTED_BORDER = new Color(0x9F, 0xA1, 0xFF);
+    private static final int MAP_MARKER_SIZE = 40;
+    private static final int MAP_MARKER_IMAGE_SIZE = 30;
+    private static final float MAP_ROUTE_STROKE_WIDTH = 3.36f;
+    private static final float MAP_MARKER_SELECTED_BORDER_WIDTH = 1.5f;
+    private static final float MAP_NOT_VISITED_BORDER_WIDTH = 1.0f;
     private static final Color BADGE_DAY_COLOR = new Color(0x66, 0x69, 0xFF);
     private static final Color BADGE_TEXT_COLOR = new Color(0x16, 0x14, 0x24);
 
@@ -73,7 +81,17 @@ public class FfmpegPozingEditor {
     @Value("${pozing.edit.ffprobe-path:ffprobe}")
     private String ffprobePath;
 
+    @Value("${pozing.edit.map-screenshot.enabled:true}")
+    private boolean mapScreenshotEnabled;
+
+    @Value("${pozing.edit.map-screenshot.base-url:http://localhost:8080}")
+    private String mapScreenshotBaseUrl;
+
+    @Value("${pozing.edit.map-screenshot.chrome-path:}")
+    private String configuredChromePath;
+
     public Path edit(
+            Long jobId,
             List<PozingEditSegment> segments,
             int memberCount,
             Path workDirectory
@@ -90,7 +108,7 @@ public class FfmpegPozingEditor {
 
         for (int i = 0; i < segments.size(); i++) {
             Path segmentOutput = workDirectory.resolve("segment-%03d.mp4".formatted(i));
-            createStackedSegment(segments.get(i), memberCount, sleepingPozitImage, segmentOutput);
+            createStackedSegment(jobId, segments.get(i), memberCount, sleepingPozitImage, segmentOutput);
             segmentOutputs.add(segmentOutput);
         }
 
@@ -100,6 +118,7 @@ public class FfmpegPozingEditor {
     }
 
     private void createStackedSegment(
+            Long jobId,
             PozingEditSegment segment,
             int memberCount,
             Path sleepingPozitImage,
@@ -107,7 +126,7 @@ public class FfmpegPozingEditor {
     ) {
         double duration = calculateSegmentDuration(segment.memberVideos());
         List<LayoutCell> videoCells = calculateVideoCells(memberCount);
-        Path mapPanelImage = createMapPanelImage(segment, output);
+        Path mapPanelImage = createMapPanelImage(jobId, segment, output);
         List<Path> nicknameImages = createNicknameImages(segment, memberCount, videoCells, output);
         List<String> command = new ArrayList<>();
         command.add(ffmpegPath);
@@ -336,10 +355,16 @@ public class FfmpegPozingEditor {
     }
 
     private Path createMapPanelImage(
+            Long jobId,
             PozingEditSegment segment,
             Path output
     ) {
         Path imagePath = output.getParent().resolve("map-%03d.png".formatted(segment.courseSpotId()));
+        if (captureMapRenderHtml(jobId, segment, imagePath)) {
+            drawBadgeOnCapturedMap(imagePath, segment);
+            return imagePath;
+        }
+
         BufferedImage image = createMapPanel(segment);
 
         try {
@@ -348,6 +373,95 @@ public class FfmpegPozingEditor {
         } catch (IOException e) {
             throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
         }
+    }
+
+    private void drawBadgeOnCapturedMap(
+            Path imagePath,
+            PozingEditSegment segment
+    ) {
+        try {
+            BufferedImage image = ImageIO.read(imagePath.toFile());
+            if (image == null) {
+                throw new IOException("Captured map image is empty.");
+            }
+
+            BufferedImage renderedImage = new BufferedImage(OUTPUT_WIDTH, MAP_AREA_HEIGHT, BufferedImage.TYPE_INT_RGB);
+            Graphics2D graphics = renderedImage.createGraphics();
+            try {
+                applyHighQualityRendering(graphics);
+                graphics.drawImage(image, 0, 0, OUTPUT_WIDTH, MAP_AREA_HEIGHT, null);
+                drawHeaderPill(graphics, segment.dayNumber(), segment.spotName());
+            } finally {
+                graphics.dispose();
+            }
+
+            ImageIO.write(renderedImage, "png", imagePath.toFile());
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
+        }
+    }
+
+    private boolean captureMapRenderHtml(
+            Long jobId,
+            PozingEditSegment segment,
+            Path imagePath
+    ) {
+        if (!mapScreenshotEnabled || jobId == null) {
+            return false;
+        }
+
+        String chromePath = resolveChromePath();
+        if (chromePath == null) {
+            return false;
+        }
+
+        String url = "%s/map-render.html?jobId=%d&currentCourseSpotId=%d&capture=true".formatted(
+                removeTrailingSlash(mapScreenshotBaseUrl),
+                jobId,
+                segment.courseSpotId()
+        );
+
+        List<String> command = List.of(
+                chromePath,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                "--hide-scrollbars",
+                "--window-size=%d,%d".formatted(OUTPUT_WIDTH, MAP_AREA_HEIGHT),
+                "--virtual-time-budget=5000",
+                "--screenshot=%s".formatted(imagePath.toAbsolutePath()),
+                url
+        );
+
+        try {
+            runScreenshotCommand(command);
+            return Files.exists(imagePath) && Files.size(imagePath) > 0;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private String resolveChromePath() {
+        if (configuredChromePath != null && !configuredChromePath.isBlank() && Files.isExecutable(Path.of(configuredChromePath))) {
+            return configuredChromePath;
+        }
+
+        return Arrays.stream(new String[]{
+                        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                        "/usr/bin/google-chrome",
+                        "/usr/bin/chromium",
+                        "/usr/bin/chromium-browser"
+                })
+                .filter(path -> Files.isExecutable(Path.of(path)))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String removeTrailingSlash(String value) {
+        if (value == null || value.isBlank()) {
+            return "http://localhost:8080";
+        }
+        return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
     }
 
     private BufferedImage createMapPanel(PozingEditSegment segment) {
@@ -359,8 +473,7 @@ public class FfmpegPozingEditor {
             drawMapBackground(graphics);
             List<MapPoint> points = calculateMapPoints(segment.routeSpots());
             drawRoute(graphics, points);
-            drawSpotStates(graphics, points, segment.currentRouteIndex());
-            drawCurrentPosong(graphics, points, segment.currentRouteIndex());
+            drawSpotMarkers(graphics, points, segment.currentRouteIndex());
             drawHeaderPill(graphics, segment.dayNumber(), segment.spotName());
         } finally {
             graphics.dispose();
@@ -458,7 +571,7 @@ public class FfmpegPozingEditor {
         }
 
         graphics.setColor(new Color(MAP_ROUTE.getRed(), MAP_ROUTE.getGreen(), MAP_ROUTE.getBlue(), 180));
-        graphics.setStroke(new BasicStroke(4.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        graphics.setStroke(new BasicStroke(MAP_ROUTE_STROKE_WIDTH, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 
         for (int index = 0; index < points.size() - 1; index++) {
             MapPoint start = points.get(index);
@@ -467,87 +580,120 @@ public class FfmpegPozingEditor {
         }
     }
 
-    private void drawSpotStates(
+    private void drawSpotMarkers(
             Graphics2D graphics,
             List<MapPoint> points,
             int currentRouteIndex
     ) {
+        BufferedImage posongImage = readImageResource(JUST_POSONG_RESOURCE);
+
         for (MapPoint point : points) {
-            if (point.routeIndex() < currentRouteIndex) {
-                drawVisitedSpot(graphics, point);
-            } else if (point.routeIndex() == currentRouteIndex) {
-                drawCurrentSpot(graphics, point);
-            } else {
-                drawUpcomingSpot(graphics, point);
+            MapSpotStatus status = resolveMapSpotStatus(point.routeIndex(), currentRouteIndex);
+
+            if (status == MapSpotStatus.VISITED) {
+                drawVisitedMarker(graphics, point);
+                continue;
             }
+
+            if (status == MapSpotStatus.VISITING) {
+                drawPosongMarker(graphics, point, posongImage, true);
+                continue;
+            }
+
+            drawNotVisitedMarker(graphics, point);
         }
     }
 
-    private void drawVisitedSpot(Graphics2D graphics, MapPoint point) {
-        graphics.setColor(MAP_VISITED);
-        graphics.fillOval(point.x() - 13, point.y() - 13, 26, 26);
+    private MapSpotStatus resolveMapSpotStatus(
+            int routeIndex,
+            int currentRouteIndex
+    ) {
+        if (routeIndex < currentRouteIndex) {
+            return MapSpotStatus.VISITED;
+        }
+        if (routeIndex == currentRouteIndex) {
+            return MapSpotStatus.VISITING;
+        }
+        return MapSpotStatus.NOT_VISITED;
     }
 
-    private void drawCurrentSpot(Graphics2D graphics, MapPoint point) {
-        int pinWidth = 48;
-        int pinHeight = 62;
-        int x = point.x();
-        int y = point.y();
+    private void drawPosongMarker(
+            Graphics2D graphics,
+            MapPoint point,
+            BufferedImage posongImage,
+            boolean selected
+    ) {
+        drawMarkerBase(graphics, point, MAP_MARKER_BACKGROUND);
 
-        graphics.setPaint(new GradientPaint(x - 18, y - pinHeight, new Color(0, 151, 255), x + 16, y, new Color(0, 107, 235)));
-        graphics.fillOval(x - pinWidth / 2, y - pinHeight, pinWidth, pinWidth);
-        graphics.fillPolygon(
-                new int[]{x - 15, x + 15, x},
-                new int[]{y - 23, y - 23, y + 3},
-                3
-        );
+        if (posongImage != null) {
+            int imageHeight = Math.max(1, posongImage.getHeight() * MAP_MARKER_IMAGE_SIZE / posongImage.getWidth());
+            graphics.drawImage(
+                    posongImage,
+                    point.x() - MAP_MARKER_IMAGE_SIZE / 2,
+                    point.y() - imageHeight / 2,
+                    MAP_MARKER_IMAGE_SIZE,
+                    imageHeight,
+                    null
+            );
+        }
+
+        if (selected) {
+            graphics.setStroke(new BasicStroke(MAP_MARKER_SELECTED_BORDER_WIDTH));
+            graphics.setColor(MAP_MARKER_SELECTED_BORDER);
+            int borderInset = Math.round(MAP_MARKER_SELECTED_BORDER_WIDTH / 2);
+            graphics.drawOval(
+                    point.x() - MAP_MARKER_SIZE / 2 + borderInset,
+                    point.y() - MAP_MARKER_SIZE / 2 + borderInset,
+                    MAP_MARKER_SIZE - borderInset * 2,
+                    MAP_MARKER_SIZE - borderInset * 2
+            );
+        }
+    }
+
+    private void drawVisitedMarker(Graphics2D graphics, MapPoint point) {
+        drawMarkerBase(graphics, point, MAP_MARKER_SELECTED_BORDER);
+
+        graphics.setStroke(new BasicStroke(3.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        graphics.setColor(Color.WHITE);
+        graphics.drawLine(point.x() - 9, point.y(), point.x() - 3, point.y() + 7);
+        graphics.drawLine(point.x() - 3, point.y() + 7, point.x() + 10, point.y() - 8);
+    }
+
+    private void drawNotVisitedMarker(Graphics2D graphics, MapPoint point) {
+        int x = point.x() - MAP_MARKER_SIZE / 2;
+        int y = point.y() - MAP_MARKER_SIZE / 2;
 
         graphics.setColor(Color.WHITE);
-        graphics.fillOval(x - 9, y - pinHeight + 15, 18, 18);
+        graphics.fillOval(x, y, MAP_MARKER_SIZE, MAP_MARKER_SIZE);
+        graphics.setStroke(new BasicStroke(MAP_NOT_VISITED_BORDER_WIDTH));
+        graphics.setColor(MAP_MARKER_SELECTED_BORDER);
+        graphics.drawOval(x, y, MAP_MARKER_SIZE, MAP_MARKER_SIZE);
     }
 
-    private void drawCurrentPosong(
+    private void drawMarkerBase(
             Graphics2D graphics,
-            List<MapPoint> points,
-            int currentRouteIndex
+            MapPoint point,
+            Color background
     ) {
-        if (currentRouteIndex < 0 || currentRouteIndex >= points.size()) {
-            return;
-        }
+        int x = point.x() - MAP_MARKER_SIZE / 2;
+        int y = point.y() - MAP_MARKER_SIZE / 2;
 
-        BufferedImage posongImage = readImageResource(JUST_POSONG_RESOURCE);
-        if (posongImage == null) {
-            return;
-        }
-
-        MapPoint currentPoint = points.get(currentRouteIndex);
-        int badgeSize = 74;
-        int imageWidth = 46;
-        int imageHeight = Math.max(1, posongImage.getHeight() * imageWidth / posongImage.getWidth());
-        int centerX = clamp(currentPoint.x() + 96, badgeSize / 2 + 12, OUTPUT_WIDTH - badgeSize / 2 - 12);
-        int centerY = clamp(currentPoint.y() - 54, badgeSize / 2 + 118, MAP_AREA_HEIGHT - badgeSize / 2 - 18);
-
-        graphics.setColor(new Color(0, 0, 0, 24));
-        graphics.fillOval(centerX - badgeSize / 2 + 4, centerY - badgeSize / 2 + 8, badgeSize, badgeSize);
-        graphics.setColor(new Color(255, 255, 255, 245));
-        graphics.fillOval(centerX - badgeSize / 2, centerY - badgeSize / 2, badgeSize, badgeSize);
-
-        graphics.drawImage(
-                posongImage,
-                centerX - imageWidth / 2,
-                centerY - imageHeight / 2 + 2,
-                imageWidth,
-                imageHeight,
-                null
-        );
-    }
-
-    private void drawUpcomingSpot(Graphics2D graphics, MapPoint point) {
-        graphics.setColor(MAP_UPCOMING);
-        graphics.fillOval(point.x() - 14, point.y() - 14, 28, 28);
-        graphics.setStroke(new BasicStroke(4.0f));
-        graphics.setColor(MAP_ROUTE);
-        graphics.drawOval(point.x() - 14, point.y() - 14, 28, 28);
+        graphics.setColor(new Color(
+                MAP_MARKER_SHADOW.getRed(),
+                MAP_MARKER_SHADOW.getGreen(),
+                MAP_MARKER_SHADOW.getBlue(),
+                34
+        ));
+        graphics.fillOval(x - 4, y - 4, MAP_MARKER_SIZE + 8, MAP_MARKER_SIZE + 8);
+        graphics.setColor(new Color(
+                MAP_MARKER_SHADOW.getRed(),
+                MAP_MARKER_SHADOW.getGreen(),
+                MAP_MARKER_SHADOW.getBlue(),
+                56
+        ));
+        graphics.fillOval(x - 2, y - 2, MAP_MARKER_SIZE + 4, MAP_MARKER_SIZE + 4);
+        graphics.setColor(background);
+        graphics.fillOval(x, y, MAP_MARKER_SIZE, MAP_MARKER_SIZE);
     }
 
     private void drawHeaderPill(
@@ -558,10 +704,8 @@ public class FfmpegPozingEditor {
         String dayText = "Day " + (dayNumber == null ? "-" : dayNumber);
         String nameText = spotName == null || spotName.isBlank() ? "장소" : spotName;
         Font dayFont = createBadgeFont(BADGE_DAY_FONT_SIZE, BADGE_BOLD_FONT_RESOURCE, TextAttribute.WEIGHT_BOLD);
-        Font placeFont = createBadgeFont(BADGE_PLACE_FONT_SIZE, BADGE_SEMIBOLD_FONT_RESOURCE, TextAttribute.WEIGHT_SEMIBOLD);
 
         FontMetrics dayMetrics = graphics.getFontMetrics(dayFont);
-        FontMetrics placeMetrics = graphics.getFontMetrics(placeFont);
         int pillHeight = BADGE_ICON_SIZE + BADGE_VERTICAL_PADDING * 2;
         int maxPillWidth = OUTPUT_WIDTH - 48;
         int fixedWidth = BADGE_HORIZONTAL_PADDING * 2
@@ -570,6 +714,14 @@ public class FfmpegPozingEditor {
                 + BADGE_ICON_SIZE
                 + BADGE_ICON_TO_NAME_GAP;
         int maxNameWidth = Math.max(1, maxPillWidth - fixedWidth);
+        Font placeFont = createFittedBadgeFont(
+                graphics,
+                nameText,
+                BADGE_SEMIBOLD_FONT_RESOURCE,
+                TextAttribute.WEIGHT_SEMIBOLD,
+                maxNameWidth
+        );
+        FontMetrics placeMetrics = graphics.getFontMetrics(placeFont);
         String fittedNameText = fitText(graphics, nameText, placeFont, maxNameWidth);
         int contentWidth = dayMetrics.stringWidth(dayText)
                 + BADGE_DAY_TO_ICON_GAP
@@ -594,12 +746,33 @@ public class FfmpegPozingEditor {
         graphics.drawString(dayText, cursor, baseline);
         cursor += dayMetrics.stringWidth(dayText) + BADGE_DAY_TO_ICON_GAP;
 
-        drawPinIcon(graphics, cursor + BADGE_ICON_SIZE / 2, pillY + pillHeight / 2);
+        drawLocationIcon(graphics, cursor + BADGE_ICON_SIZE / 2, pillY + pillHeight / 2);
         cursor += BADGE_ICON_SIZE + BADGE_ICON_TO_NAME_GAP;
 
         graphics.setFont(placeFont);
         graphics.setColor(BADGE_TEXT_COLOR);
         graphics.drawString(fittedNameText, cursor, baseline);
+    }
+
+    private Font createFittedBadgeFont(
+            Graphics2D graphics,
+            String text,
+            String resourcePath,
+            Float weight,
+            int maxWidth
+    ) {
+        float fontSize = BADGE_PLACE_FONT_SIZE;
+        Font font = createBadgeFont(fontSize, resourcePath, weight);
+
+        graphics.setFont(font);
+        while (fontSize > BADGE_MIN_PLACE_FONT_SIZE
+                && graphics.getFontMetrics().stringWidth(text) > maxWidth) {
+            fontSize -= 1.0f;
+            font = createBadgeFont(fontSize, resourcePath, weight);
+            graphics.setFont(font);
+        }
+
+        return font;
     }
 
     private Font createBadgeFont(
@@ -609,8 +782,8 @@ public class FfmpegPozingEditor {
     ) {
         ClassPathResource resource = new ClassPathResource(resourcePath);
         if (resource.exists()) {
-            try (InputStream inputStream = resource.getInputStream()) {
-                return Font.createFont(Font.TRUETYPE_FONT, inputStream).deriveFont(fontSize);
+            try {
+                return createFontFromResource(resourcePath, fontSize);
             } catch (Exception ignored) {
             }
         }
@@ -620,6 +793,22 @@ public class FfmpegPozingEditor {
         attributes.put(TextAttribute.SIZE, fontSize);
         attributes.put(TextAttribute.WEIGHT, weight);
         return new Font(attributes);
+    }
+
+    private Font createFontFromResource(
+            String resourcePath,
+            float fontSize
+    ) throws IOException, FontFormatException {
+        ClassPathResource resource = new ClassPathResource(resourcePath);
+        if (!resource.exists()) {
+            throw new IOException("Font resource does not exist: " + resourcePath);
+        }
+
+        try (InputStream inputStream = resource.getInputStream()) {
+            Font font = Font.createFont(Font.TRUETYPE_FONT, inputStream);
+            GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(font);
+            return font.deriveFont(fontSize);
+        }
     }
 
     private void drawBadgeShadow(
@@ -637,18 +826,20 @@ public class FfmpegPozingEditor {
         graphics.fillRoundRect(x - 3, y, width + 6, height + 6, height + 6, height + 6);
     }
 
-    private void drawPinIcon(Graphics2D graphics, int centerX, int centerY) {
-        graphics.setColor(BADGE_DAY_COLOR);
-        graphics.fillOval(centerX - 17, centerY - 23, 34, 34);
-        graphics.fillPolygon(
-                new int[]{centerX - 11, centerX + 11, centerX},
-                new int[]{centerY + 2, centerY + 2, centerY + 22},
-                3
+    private void drawLocationIcon(Graphics2D graphics, int centerX, int centerY) {
+        BufferedImage locationImage = readImageResource(LOCATION_RESOURCE);
+        if (locationImage == null) {
+            return;
+        }
+
+        graphics.drawImage(
+                locationImage,
+                centerX - BADGE_ICON_SIZE / 2,
+                centerY - BADGE_ICON_SIZE / 2,
+                BADGE_ICON_SIZE,
+                BADGE_ICON_SIZE,
+                null
         );
-        graphics.setColor(Color.WHITE);
-        graphics.fillOval(centerX - 7, centerY - 13, 14, 14);
-        graphics.setColor(BADGE_DAY_COLOR);
-        graphics.fillOval(centerX - 4, centerY - 10, 8, 8);
     }
 
     private BufferedImage readImageResource(String resourcePath) {
@@ -662,14 +853,6 @@ public class FfmpegPozingEditor {
         } catch (IOException e) {
             throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
         }
-    }
-
-    private int clamp(
-            int value,
-            int min,
-            int max
-    ) {
-        return Math.max(min, Math.min(max, value));
     }
 
     private String fitText(
@@ -769,6 +952,29 @@ public class FfmpegPozingEditor {
         }
     }
 
+    private void runScreenshotCommand(List<String> command) throws IOException, InterruptedException {
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        processBuilder.redirectErrorStream(true);
+        Path outputFile = Files.createTempFile("map-screenshot-output-", ".log");
+
+        try {
+            processBuilder.redirectOutput(outputFile.toFile());
+            Process process = processBuilder.start();
+            boolean finished = process.waitFor(MAP_SCREENSHOT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+            if (!finished) {
+                terminate(process);
+                throw new IOException("Map screenshot command timed out.");
+            }
+
+            if (process.exitValue() != 0) {
+                throw new IOException("Map screenshot command failed.");
+            }
+        } finally {
+            Files.deleteIfExists(outputFile);
+        }
+    }
+
     private void terminate(Process process) {
         if (process == null || !process.isAlive()) {
             return;
@@ -847,16 +1053,16 @@ public class FfmpegPozingEditor {
     ) {
         int fontSize = calculateNicknameFontSize(cell);
         int maxWidth = Math.max(1, cell.width() - calculateNicknameMargin(cell) * 2);
-        Font font = new Font(NICKNAME_FONT, Font.BOLD, fontSize);
+        Font font = createNicknameFont(fontSize);
 
         BufferedImage measureImage = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
         Graphics2D measureGraphics = measureImage.createGraphics();
         try {
             measureGraphics.setFont(font);
             FontMetrics metrics = measureGraphics.getFontMetrics();
-            while (metrics.stringWidth(nickname) + NICKNAME_SHADOW_OFFSET > maxWidth && fontSize > 18) {
+            while (metrics.stringWidth(nickname) > maxWidth && fontSize > 18) {
                 fontSize -= 2;
-                font = font.deriveFont((float) fontSize);
+                font = createNicknameFont(fontSize);
                 measureGraphics.setFont(font);
                 metrics = measureGraphics.getFontMetrics();
             }
@@ -886,15 +1092,13 @@ public class FfmpegPozingEditor {
             measureGraphics.dispose();
         }
 
-        int width = Math.max(1, metrics.stringWidth(nickname) + NICKNAME_SHADOW_OFFSET + 2);
-        int height = Math.max(1, metrics.getAscent() + metrics.getDescent() + NICKNAME_SHADOW_OFFSET + 2);
+        int width = Math.max(1, metrics.stringWidth(nickname) + 2);
+        int height = Math.max(1, metrics.getAscent() + metrics.getDescent() + 2);
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = image.createGraphics();
         try {
             graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             graphics.setFont(font);
-            graphics.setColor(new Color(0, 0, 0, 190));
-            graphics.drawString(nickname, NICKNAME_SHADOW_OFFSET + 1, metrics.getAscent() + NICKNAME_SHADOW_OFFSET + 1);
             graphics.setColor(Color.WHITE);
             graphics.drawString(nickname, 1, metrics.getAscent() + 1);
         } finally {
@@ -902,6 +1106,14 @@ public class FfmpegPozingEditor {
         }
 
         return image;
+    }
+
+    private Font createNicknameFont(float fontSize) {
+        try {
+            return createFontFromResource(BADGE_SEMIBOLD_FONT_RESOURCE, fontSize);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.POZING_EDIT_FAILED);
+        }
     }
 
     static List<LayoutCell> calculateVideoCells(int memberCount) {
@@ -986,7 +1198,7 @@ public class FfmpegPozingEditor {
     }
 
     private static int calculateNicknameFontSize(LayoutCell cell) {
-        return Math.max(24, Math.min(44, cell.height() / 8));
+        return Math.max(20, Math.min(34, cell.height() / 10));
     }
 
     private static int calculateNicknameMargin(LayoutCell cell) {
@@ -1034,5 +1246,11 @@ public class FfmpegPozingEditor {
             int y,
             int routeIndex
     ) {
+    }
+
+    private enum MapSpotStatus {
+        VISITED,
+        VISITING,
+        NOT_VISITED
     }
 }

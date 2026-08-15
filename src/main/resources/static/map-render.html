@@ -11,6 +11,7 @@
             --panel-border: rgba(28, 35, 54, 0.14);
             --text: #1b2537;
             --muted: #667085;
+            --purple3: #9FA1FF;
         }
 
         * {
@@ -90,49 +91,58 @@
         .spot-marker {
             position: relative;
             display: grid;
-            min-width: 46px;
-            height: 46px;
+            width: 40px;
+            height: 40px;
             place-items: center;
-            padding: 0 9px;
-            border: 3px solid #ffffff;
-            border-radius: 999px 999px 999px 4px;
-            background: var(--day-color);
-            box-shadow: 0 10px 24px rgba(18, 26, 38, 0.24);
-            color: #ffffff;
-            font-size: 12px;
-            font-weight: 800;
-            line-height: 1;
-            transform: rotate(-45deg);
+            padding: 0;
+            border: 1.5px solid transparent;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 0 4px rgba(159, 161, 255, 0.4);
             cursor: pointer;
             user-select: none;
         }
 
-        .spot-marker span {
-            transform: rotate(45deg);
-            white-space: nowrap;
+        .spot-marker.is-selected {
+            border-color: var(--purple3);
         }
 
-        .spot-marker.is-muted {
-            opacity: 0.25;
+        .spot-marker.is-visiting {
+            border-color: var(--purple3);
         }
 
-        .spot-label {
-            position: absolute;
-            left: 50%;
-            top: 52px;
-            max-width: 180px;
-            padding: 6px 8px;
-            border: 1px solid rgba(28, 35, 54, 0.12);
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.96);
-            color: var(--text);
-            box-shadow: 0 8px 18px rgba(18, 26, 38, 0.14);
-            font-size: 12px;
-            font-weight: 700;
-            line-height: 1.3;
-            text-align: center;
-            transform: translateX(-50%) rotate(45deg);
-            white-space: normal;
+        .spot-marker.is-visited {
+            background: var(--purple3);
+        }
+
+        .spot-marker.is-visited::after {
+            width: 13px;
+            height: 7px;
+            border-bottom: 3px solid #ffffff;
+            border-left: 3px solid #ffffff;
+            content: "";
+            transform: translateY(-1px) rotate(-45deg);
+        }
+
+        .spot-marker img {
+            display: block;
+            width: 30px;
+            height: 30px;
+            object-fit: contain;
+            pointer-events: none;
+        }
+
+        .spot-marker.is-visited img {
+            display: none;
+        }
+
+        .spot-marker.is-not-visited {
+            border: 1px solid var(--purple3);
+            background: #ffffff;
+        }
+
+        .spot-marker.is-not-visited img {
+            display: none;
         }
 
         @media (max-width: 640px) {
@@ -148,6 +158,11 @@
                 bottom: 10px;
                 max-width: calc(100vw - 20px);
             }
+        }
+
+        body.is-capture .toolbar,
+        body.is-capture .status {
+            display: none;
         }
     </style>
 </head>
@@ -183,9 +198,16 @@
     const toolbar = document.getElementById("toolbar");
     const statusBox = document.getElementById("status");
     const overlays = [];
+    const polylines = [];
+    const captureMode = params.get("capture") === "true";
+    const fitPadding = captureMode ? 28 : 44;
     let map;
     let activeDay = "all";
     let normalizedCourses = [];
+
+    if (captureMode) {
+        document.body.classList.add("is-capture");
+    }
 
     kakao.maps.load(async function () {
         map = new kakao.maps.Map(
@@ -199,8 +221,11 @@
         try {
             const manifest = await loadManifest();
             normalizedCourses = normalizeCourses(manifest);
+            applyRouteIndexes(normalizedCourses);
+            const currentRouteIndex = getCurrentRouteIndex(normalizedCourses);
             renderDayControls(normalizedCourses);
-            renderMarkers(normalizedCourses);
+            renderRoutes(normalizedCourses);
+            renderMarkers(normalizedCourses, currentRouteIndex);
             applyDayFilter("all");
             updateStatus(normalizedCourses);
             console.log("Kakao Map render complete", manifest);
@@ -258,6 +283,15 @@
             .sort((a, b) => a.dayNumber - b.dayNumber);
     }
 
+    function applyRouteIndexes(courses) {
+        let routeIndex = 0;
+        for (const course of courses) {
+            for (const spot of course.spots) {
+                spot.routeIndex = routeIndex++;
+            }
+        }
+    }
+
     function normalizeSpots(course) {
         const spots = Array.isArray(course?.spots) ? course.spots : [];
 
@@ -299,43 +333,125 @@
         return button;
     }
 
-    function renderMarkers(courses) {
+    function renderMarkers(courses, currentRouteIndex) {
         clearMarkers();
 
         for (const course of courses) {
             for (const spot of course.spots) {
                 const position = new kakao.maps.LatLng(spot.latitude, spot.longitude);
-                const markerElement = createMarkerElement(course, spot);
+                const markerElement = createMarkerElement(course, spot, currentRouteIndex);
                 const overlay = new kakao.maps.CustomOverlay({
                     position,
                     content: markerElement,
-                    yAnchor: 1
+                    xAnchor: 0.5,
+                    yAnchor: 0.5
                 });
 
                 overlay.dayNumber = course.dayNumber;
                 overlay.position = position;
+                overlay.routeIndex = spot.routeIndex;
+                overlay.setZIndex(10);
                 overlay.setMap(map);
                 overlays.push(overlay);
             }
         }
     }
 
-    function createMarkerElement(course, spot) {
+    function renderRoutes(courses) {
+        clearRoutes();
+
+        for (const course of courses) {
+            if (course.spots.length < 2) {
+                continue;
+            }
+
+            const path = course.spots.map((spot) => new kakao.maps.LatLng(
+                spot.latitude,
+                spot.longitude
+            ));
+
+            const polyline = new kakao.maps.Polyline({
+                path,
+                strokeWeight: 3.36,
+                strokeColor: "#9FA1FF",
+                strokeOpacity: 0.85,
+                strokeStyle: "solid",
+                zIndex: 1
+            });
+
+            polyline.dayNumber = course.dayNumber;
+            polyline.setMap(map);
+            polylines.push(polyline);
+        }
+    }
+
+    function createMarkerElement(course, spot, currentRouteIndex) {
         const marker = document.createElement("div");
         marker.className = "spot-marker";
-        marker.style.setProperty("--day-color", course.color);
         marker.title = `Day ${course.dayNumber} ${spot.orderIndex}. ${spot.name}`;
+        marker.dataset.status = getMarkerStatus(spot.routeIndex, currentRouteIndex);
+        marker.classList.add(getMarkerStatusClass(marker.dataset.status));
+        if (marker.dataset.status === "VISITING") {
+            marker.classList.add("is-selected");
+        }
 
-        const number = document.createElement("span");
-        number.textContent = `D${course.dayNumber}-${spot.orderIndex}`;
-        marker.appendChild(number);
+        const image = document.createElement("img");
+        image.src = "/just_posong.png";
+        image.alt = "";
+        marker.appendChild(image);
 
-        const label = document.createElement("div");
-        label.className = "spot-label";
-        label.textContent = spot.name;
-        marker.appendChild(label);
+        marker.addEventListener("click", () => {
+            for (const selectedMarker of document.querySelectorAll(".spot-marker.is-selected")) {
+                selectedMarker.classList.remove("is-selected");
+            }
+            marker.classList.add("is-selected");
+        });
 
         return marker;
+    }
+
+    function getMarkerStatus(routeIndex, currentRouteIndex) {
+        if (!Number.isFinite(currentRouteIndex)) {
+            return "NOT_VISITED";
+        }
+
+        if (routeIndex < currentRouteIndex) {
+            return "VISITED";
+        }
+        if (routeIndex === currentRouteIndex) {
+            return "VISITING";
+        }
+        return "NOT_VISITED";
+    }
+
+    function getMarkerStatusClass(status) {
+        if (status === "NOT_VISITED") {
+            return "is-not-visited";
+        }
+        return `is-${status.toLowerCase()}`;
+    }
+
+    function getCurrentRouteIndex(courses) {
+        const routeIndexParam = params.get("currentRouteIndex");
+        const routeIndex = Number(routeIndexParam);
+        if (routeIndexParam !== null && Number.isFinite(routeIndex)) {
+            return routeIndex;
+        }
+
+        const currentCourseSpotId = params.get("currentCourseSpotId");
+        if (!currentCourseSpotId) {
+            return null;
+        }
+
+        for (const course of courses) {
+            for (const spot of course.spots) {
+                if (String(spot.courseSpotId) === currentCourseSpotId) {
+                    return spot.routeIndex;
+                }
+            }
+        }
+
+        return null;
     }
 
     function applyDayFilter(day) {
@@ -348,6 +464,11 @@
             if (isVisible) {
                 visiblePositions.push(overlay.position);
             }
+        }
+
+        for (const polyline of polylines) {
+            const isVisible = day === "all" || polyline.dayNumber === day;
+            polyline.setMap(isVisible ? map : null);
         }
 
         for (const button of toolbar.querySelectorAll(".day-button")) {
@@ -367,7 +488,7 @@
 
         if (positions.length === 1) {
             map.setCenter(positions[0]);
-            map.setLevel(4);
+            map.setLevel(captureMode ? 3 : 4);
             return;
         }
 
@@ -375,17 +496,18 @@
         for (const position of positions) {
             bounds.extend(position);
         }
-        map.setBounds(bounds, 80, 80, 80, 80);
+        map.setBounds(bounds, fitPadding, fitPadding, fitPadding, fitPadding);
     }
 
     function updateStatus(courses) {
         const spotCount = courses.reduce((total, course) => total + course.spots.length, 0);
+        const routeCount = courses.reduce((total, course) => total + Math.max(course.spots.length - 1, 0), 0);
         if (spotCount === 0) {
             statusBox.textContent = "표시할 courseSpot 좌표가 없습니다.";
             return;
         }
 
-        statusBox.textContent = `${courses.length}개 day, ${spotCount}개 courseSpot을 표시했습니다.`;
+        statusBox.textContent = `${courses.length}개 day, ${spotCount}개 courseSpot, ${routeCount}개 경로 선을 표시했습니다.`;
     }
 
     function clearMarkers() {
@@ -393,6 +515,13 @@
             overlay.setMap(null);
         }
         overlays.length = 0;
+    }
+
+    function clearRoutes() {
+        for (const polyline of polylines) {
+            polyline.setMap(null);
+        }
+        polylines.length = 0;
     }
 
     function dayColor(dayNumber) {
