@@ -516,6 +516,13 @@ public class TravelService {
         int likeCount = (int) likeRepository.countByTravel(travel);
         boolean isLiked = currentUser != null && likeRepository.existsByTravelAndUser(travel, currentUser);
 
+        List<PublicTravelDetailResponse.MemberInfo> memberInfos = aggregate.members().stream()
+                .map(m -> new PublicTravelDetailResponse.MemberInfo(
+                        m.getUser().getNickname(),
+                        m.getRole().name()
+                ))
+                .toList();
+
         return new PublicTravelDetailResponse(
                 travel.getId(),
                 travel.getTitle(),
@@ -533,6 +540,7 @@ public class TravelService {
                 aggregate.tags(),
                 likeCount,
                 isLiked,
+                memberInfos,
                 courseInfos
         );
     }
