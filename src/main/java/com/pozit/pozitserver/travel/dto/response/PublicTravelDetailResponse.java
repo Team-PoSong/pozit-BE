@@ -21,8 +21,14 @@ public record PublicTravelDetailResponse(
         List<String> tags,
         Integer likeCount,
         Boolean isLiked,
+        List<MemberInfo> members,
         List<CourseInfo> courses
 ) {
+    public record MemberInfo(
+            String nickname,
+            String role
+    ) {}
+
     public record CourseInfo(
             Long courseId,
             Integer dayNumber,
