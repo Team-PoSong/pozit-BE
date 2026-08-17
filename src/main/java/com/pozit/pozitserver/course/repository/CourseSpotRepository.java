@@ -3,6 +3,7 @@ package com.pozit.pozitserver.course.repository;
 import com.pozit.pozitserver.course.domain.Course;
 import com.pozit.pozitserver.course.domain.CourseSpot;
 import com.pozit.pozitserver.course.domain.CourseSpotStatus;
+import com.pozit.pozitserver.travel.domain.Travel;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -36,4 +37,14 @@ public interface CourseSpotRepository extends JpaRepository<CourseSpot, Long> {
             order by c.dayNumber asc, cs.orderIndex asc, cs.id asc
             """)
     List<CourseSpot> findAllByTravelIdForEdit(@Param("travelId") Long travelId);
+
+    @Query("""
+            select cs
+            from CourseSpot cs
+            join fetch cs.course c
+            join fetch cs.touristSpot
+            where c.travel in :travels
+            order by c.travel.id asc, c.dayNumber asc, cs.orderIndex asc, cs.id asc
+            """)
+    List<CourseSpot> findAllByCourseTravelInOrder(@Param("travels") List<Travel> travels);
 }
