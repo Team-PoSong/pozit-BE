@@ -192,6 +192,54 @@ public class TravelController {
         return SuccessResponse.ok(travelService.getTravels(currentUser, isDone));
     }
 
+    @GetMapping("/active-spots")
+    @Operation(summary = "진행중 여행의 코스 스팟 목록 조회", description = "인증된 사용자의 '진행중' 여행에 속한 코스 스팟 목록 반환. 진행중 여행이 여러 개면 모두 포함.")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "COMMON200",
+                                      "message": "요청에 성공했습니다.",
+                                      "result": {
+                                        "spots": [
+                                          {
+                                            "travelId": 12,
+                                            "courseSpotId": 501,
+                                            "touristSpotId": 30,
+                                            "name": "동궁과 월지",
+                                            "latitude": 35.8347,
+                                            "longitude": 129.2247
+                                          }
+                                        ]
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "인증되지 않은 요청",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON401",
+                                      "message": "인증되지 않은 요청입니다."
+                                    }
+                                    """)
+                    )
+            )
+    })
+    public SuccessResponse<ActiveSpotsResponse> getActiveSpots(
+            @CurrentUser User currentUser) {
+        return SuccessResponse.ok(travelService.getActiveSpots(currentUser));
+    }
+
     @GetMapping("/{travelId}")
     @Operation(summary = "여행 상세 조회", description = "선택한 여행의 일정, 장소 리스트, 타임랩스, 참여 멤버, 진행률을 조회합니다.")
     @ApiResponses({
