@@ -254,6 +254,34 @@ public class TravelService {
         return buildTravelListResponses(travels);
     }
 
+    /**
+     * 진행중인 여행들의 코스 스팟 목록을 조회한다.
+     */
+    public ActiveSpotsResponse getActiveSpots(User currentUser) {
+        List<Travel> activeTravels = travelMemberRepository.findAllWithTravelByUser(currentUser).stream()
+                .map(TravelMember::getTravel)
+                .filter(travel -> travel.getStatus() == TravelStatus.IN_PROGRESS)
+                .toList();
+
+        if (activeTravels.isEmpty()) {
+            return new ActiveSpotsResponse(List.of());
+        }
+
+        List<ActiveSpotsResponse.SpotInfo> spots = courseSpotRepository.findAllByCourseTravelInOrder(activeTravels)
+                .stream()
+                .map(cs -> new ActiveSpotsResponse.SpotInfo(
+                        cs.getCourse().getTravel().getId(),
+                        cs.getId(),
+                        cs.getTouristSpot().getId(),
+                        cs.getTouristSpot().getName(),
+                        cs.getTouristSpot().getLatitude(),
+                        cs.getTouristSpot().getLongitude()
+                ))
+                .toList();
+
+        return new ActiveSpotsResponse(spots);
+    }
+
     public List<TagResponse> getTravelTags(User currentUser, Long travelId) {
         Travel travel = travelRepository.findById(travelId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
