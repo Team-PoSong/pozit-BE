@@ -159,6 +159,9 @@ jobs:
             export AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET_ACCESS_KEY }}'
             export AWS_REGION='ap-northeast-2'
             export PUBLIC_BASE_URL='${{ secrets.PUBLIC_BASE_URL }}'
+            export DISCORD_WEBHOOK_ENABLED='${{ secrets.DISCORD_WEBHOOK_ENABLED }}'
+            export DISCORD_WEBHOOK_URL='${{ secrets.DISCORD_WEBHOOK_URL }}'
+            export DISCORD_WEBHOOK_USERNAME='${{ secrets.DISCORD_WEBHOOK_USERNAME }}'
 
 
             chmod +x /home/${{ secrets.PROD_EC2_USER }}/deploy.sh

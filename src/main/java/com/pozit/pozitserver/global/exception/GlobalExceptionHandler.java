@@ -1,6 +1,9 @@
 package com.pozit.pozitserver.global.exception;
 
+import com.pozit.pozitserver.global.alert.DiscordWebhookAlertService;
 import com.pozit.pozitserver.global.response.ErrorResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -15,11 +18,18 @@ import java.util.Map;
 
 @RestControllerAdvice
 @Slf4j
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
 
+    private final DiscordWebhookAlertService discordWebhookAlertService;
+
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException e) {
+    public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException e, HttpServletRequest request) {
         ErrorCode errorCode = e.getErrorCode();
+        if (errorCode.getHttpStatus().is5xxServerError()) {
+            log.error("Server business exception", e);
+            discordWebhookAlertService.sendServerErrorAlert(e, request, errorCode.getHttpStatus().value());
+        }
 
         return ResponseEntity
                 .status(errorCode.getHttpStatus())
@@ -77,8 +87,9 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleException(Exception e) {
+    public ResponseEntity<ErrorResponse> handleException(Exception e, HttpServletRequest request) {
         log.error("Unhandled exception", e);
+        discordWebhookAlertService.sendServerErrorAlert(e, request, ErrorCode.COMMON500.getHttpStatus().value());
         return ResponseEntity
                 .internalServerError()
                 .body(ErrorResponse.of(
