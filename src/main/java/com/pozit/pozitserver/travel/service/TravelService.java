@@ -390,13 +390,20 @@ public class TravelService {
                 .orElse(null);
     }
 
-    private String currentLeaderNickname(Travel travel) {
-        List<TravelMember> members = travelMemberRepository.findAllWithUserByTravelIn(List.of(travel));
+    private String leaderNicknameOf(Travel travel, List<TravelMember> members) {
         String leaderNickname = leaderNicknameOf(members);
         if (leaderNickname != null) {
             return leaderNickname;
         }
-        return travel.getLeader() != null ? travel.getLeader().getNickname() : null;
+        if (travel.getLeader() != null) {
+            return travel.getLeader().getNickname();
+        }
+        return "";
+    }
+
+    private String currentLeaderNickname(Travel travel) {
+        List<TravelMember> members = travelMemberRepository.findAllWithUserByTravelIn(List.of(travel));
+        return leaderNicknameOf(travel, members);
     }
 
     private String createBackgroundImageUrl(Travel travel) {
@@ -416,7 +423,7 @@ public class TravelService {
     ) {
         List<String> tags = travelTags.stream().map(t -> t.getTag().getName()).toList();
         int completionRate = calculateCompletionRate(spots);
-        String leaderNickname = leaderNicknameOf(members);
+        String leaderNickname = leaderNicknameOf(travel, members);
 
         return new TravelListResponse(
                 travel.getId(),
@@ -445,7 +452,7 @@ public class TravelService {
     ) {
         List<String> tags = travelTags.stream().map(t -> t.getTag().getName()).toList();
         int completionRate = calculateCompletionRate(spots);
-        String leaderNickname = leaderNicknameOf(members);
+        String leaderNickname = leaderNicknameOf(travel, members);
 
         return new PublicTravelListResponse(
                 travel.getId(),
