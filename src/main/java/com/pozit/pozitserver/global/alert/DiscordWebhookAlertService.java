@@ -23,7 +23,8 @@ import java.util.Map;
 public class DiscordWebhookAlertService {
 
     private static final int DISCORD_CONTENT_LIMIT = 2000;
-    private static final int STACK_TRACE_LIMIT = 900;
+    private static final int STACK_TRACE_LIMIT = 700;
+    private static final int EXCEPTION_MESSAGE_LIMIT = 300;
 
     private final DiscordWebhookProperties properties;
     private final WebClient.Builder webClientBuilder;
@@ -34,16 +35,12 @@ public class DiscordWebhookAlertService {
             return;
         }
 
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("username", properties.getUsername());
-        payload.put("content", buildContent(exception, request, status));
-
         webClientBuilder
                 .clone()
                 .build()
                 .post()
                 .uri(properties.getUrl())
-                .bodyValue(payload)
+                .bodyValue(buildPayload(exception, request, status))
                 .retrieve()
                 .toBodilessEntity()
                 .timeout(Duration.ofSeconds(3))
@@ -54,39 +51,52 @@ public class DiscordWebhookAlertService {
                 .subscribe();
     }
 
-    private String buildContent(Throwable exception, HttpServletRequest request, int status) {
+    Map<String, Object> buildPayload(Throwable exception, HttpServletRequest request, int status) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("username", properties.getUsername());
+        payload.put("content", buildContent(exception, request, status));
+        return payload;
+    }
+
+    String buildContent(Throwable exception, HttpServletRequest request, int status) {
         String requestPath = request.getRequestURI();
         if (request.getQueryString() != null) {
             requestPath += "?" + request.getQueryString();
         }
 
         String content = """
-                **[POZIT Server Error]**
+                **[POZIT] Server Error**
+                `status` %s  `profile` %s
                 
                 **Request**
                 ```http
                 %s %s -> %d
                 ```
-                **Environment**
-                `profile` %s
-                `time` %s
-                
                 **Exception**
-                `type` %s
-                `message` %s
-                
+                %s
+                ```text
+                %s
+                ```
+                **Context**
+                `time` %s
+                `clientIp` %s
+                `userAgent` %s
+
                 **Stack Trace**
                 ```text
                 %s
                 ```
                 """.formatted(
+                inlineCode(String.valueOf(status)),
+                inlineCode(activeProfiles()),
                 request.getMethod(),
                 escapeCodeBlock(requestPath),
                 status,
-                inlineCode(activeProfiles()),
-                inlineCode(OffsetDateTime.now(ZoneId.of("Asia/Seoul")).toString()),
                 inlineCode(exception.getClass().getName()),
-                inlineCode(safeMessage(exception)),
+                escapeCodeBlock(abbreviate(safeMessage(exception), EXCEPTION_MESSAGE_LIMIT)),
+                inlineCode(OffsetDateTime.now(ZoneId.of("Asia/Seoul")).toString()),
+                inlineCode(clientIp(request)),
+                inlineCode(headerOrEmpty(request, "User-Agent")),
                 escapeCodeBlock(abbreviate(stackTrace(exception), STACK_TRACE_LIMIT))
         );
 
@@ -100,6 +110,24 @@ public class DiscordWebhookAlertService {
         }
 
         return String.join(",", Arrays.asList(activeProfiles));
+    }
+
+    private String clientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+
+        return request.getRemoteAddr();
+    }
+
+    private String headerOrEmpty(HttpServletRequest request, String name) {
+        String value = request.getHeader(name);
+        if (value == null || value.isBlank()) {
+            return "(empty)";
+        }
+
+        return value;
     }
 
     private String safeMessage(Throwable exception) {

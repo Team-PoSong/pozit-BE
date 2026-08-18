@@ -3,6 +3,7 @@ package com.pozit.pozitserver.test.controller;
 import com.pozit.pozitserver.global.response.SuccessResponse;
 import com.pozit.pozitserver.test.dto.SampleResponseDto;
 import com.pozit.pozitserver.test.service.TestService;
+import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +25,8 @@ public class TestController {
         return SuccessResponse.ok(testService.getSample());
     }
 
-    @GetMapping("/test/error")
+    @GetMapping("/error")
+    @Hidden
     public void testError() {
         throw new RuntimeException("Discord webhook test error");
     }
