@@ -102,6 +102,16 @@ jobs:
       - name: Build jar for Docker (bootJar)
         run: ./gradlew bootJar
 
+      - name: Free disk space before Docker build
+        run: |
+          docker system prune -af || true
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h
+
       - name: Docker Buildx setup
         uses: docker/setup-buildx-action@v3
 
