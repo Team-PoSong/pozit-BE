@@ -62,6 +62,31 @@ public class TourApiCandidateProvider {
                 .toList();
     }
 
+    public List<CandidatePlace> findKeywordCandidates(
+            CourseRecommendCommand command,
+            List<String> keywords,
+            int maxCount
+    ) {
+        TourApiRegionCodes regionCodes = regionCodeResolver.resolve(command.regionCode());
+        Map<String, CandidatePlace> candidatesByContentId = new LinkedHashMap<>();
+
+        for (String keyword : keywords) {
+            if (candidatesByContentId.size() >= maxCount) {
+                break;
+            }
+
+            collectKeywordCandidates(keyword, regionCodes).values().stream()
+                    .limit(Math.max(0, maxCount - candidatesByContentId.size()))
+                    .forEach(place -> candidatesByContentId.putIfAbsent(place.contentId(), place));
+        }
+
+        return candidatesByContentId.values().stream()
+                .limit(maxCount)
+                .map(this::enrich)
+                .filter(place -> !isFinishedEvent(place, command))
+                .toList();
+    }
+
     private Map<String, CandidatePlace> collectTagCandidates(
             RecommendationTag tag,
             CourseRecommendCommand command,
