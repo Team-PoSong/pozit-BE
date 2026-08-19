@@ -2,8 +2,11 @@ package com.pozit.pozitserver.recommendation.controller;
 
 import com.pozit.pozitserver.global.auth.annotation.CurrentUser;
 import com.pozit.pozitserver.global.response.SuccessResponse;
+import com.pozit.pozitserver.recommendation.dto.CourseChatRequest;
+import com.pozit.pozitserver.recommendation.dto.CourseChatResponse;
 import com.pozit.pozitserver.recommendation.dto.RecommendedCourseResponse;
 import com.pozit.pozitserver.recommendation.dto.RecommendedCourseSaveRequest;
+import com.pozit.pozitserver.recommendation.service.CourseChatService;
 import com.pozit.pozitserver.recommendation.service.CourseRecommendationService;
 import com.pozit.pozitserver.user.domain.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CourseRecommendationController {
 
     private final CourseRecommendationService courseRecommendationService;
+    private final CourseChatService courseChatService;
 
     @PostMapping("/preview")
     @Operation(
@@ -49,5 +53,18 @@ public class CourseRecommendationController {
     ) {
         courseRecommendationService.commit(travelId, currentUser, request);
         return SuccessResponse.ok();
+    }
+
+    @PostMapping("/chat")
+    @Operation(
+            summary = "LLM 코스 수정 제안",
+            description = "저장된 코스와 사용자 메시지를 기반으로 LLM이 수정 의도를 추출하고, 관광정보 API 후보를 활용해 적용 가능한 코스 수정안을 반환합니다. DB의 코스 장소는 변경하지 않습니다."
+    )
+    public SuccessResponse<CourseChatResponse> chat(
+            @CurrentUser User currentUser,
+            @Parameter(description = "여행 ID") @PathVariable Long travelId,
+            @Valid @RequestBody CourseChatRequest request
+    ) {
+        return SuccessResponse.ok(courseChatService.suggest(travelId, currentUser, request));
     }
 }

@@ -1,5 +1,6 @@
 package com.pozit.pozitserver.global.config;
 
+import com.pozit.pozitserver.global.openai.OpenAiProperties;
 import com.pozit.pozitserver.global.tourapi.TourApiProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,4 +23,15 @@ public class WebClientConfig {
                 .baseUrl(properties.baseUrl())
                 .build();
     }
+
+    @Bean
+    public WebClient openAiWebClient(
+            WebClient.Builder webClientBuilder,
+            OpenAiProperties properties
+    ) {
+        return webClientBuilder.clone()
+                .baseUrl(properties.baseUrl())
+                .build();
+    }
+
 }
