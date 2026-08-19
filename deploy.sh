@@ -10,6 +10,10 @@ cd "$DEPLOY_PATH"
 echo "[INFO] REGISTRY=$DOCKER_CONTAINER_REGISTRY"
 echo "[INFO] SHA=$GITHUB_SHA"
 
+# 새 이미지 레이어를 풀 공간 확보
+docker system prune -af || true
+docker builder prune -af || true
+
 # 전체 이미지 pull
 docker compose -f docker-compose.yml pull
 
@@ -30,4 +34,3 @@ docker image prune -af
 docker builder prune -af
 
 echo "Deployment completed."
-
