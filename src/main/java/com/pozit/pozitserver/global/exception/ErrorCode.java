@@ -69,6 +69,11 @@ public enum ErrorCode {
     //Tour API
     TOUR_API_REQUEST_FAILED(HttpStatus.BAD_GATEWAY,"TOURAPI502_1","관광공사 API 요청에 실패했습니다."),
 
+    // OpenAI
+    OPENAI_API_KEY_MISSING(HttpStatus.INTERNAL_SERVER_ERROR, "OPENAI500_1", "OpenAI API Key 설정이 누락되었습니다."),
+    OPENAI_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "OPENAI502_1", "OpenAI API 요청에 실패했습니다."),
+    OPENAI_RESPONSE_PARSE_FAILED(HttpStatus.BAD_GATEWAY, "OPENAI502_2", "OpenAI API 응답을 해석하지 못했습니다."),
+
     // User
     DUPLICATE_NICKNAME(HttpStatus.BAD_REQUEST, "USER400_1", "이미 사용 중인 닉네임입니다."),
 

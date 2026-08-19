@@ -2,8 +2,12 @@ package com.pozit.pozitserver.recommendation.controller;
 
 import com.pozit.pozitserver.global.auth.annotation.CurrentUser;
 import com.pozit.pozitserver.global.response.SuccessResponse;
+import com.pozit.pozitserver.recommendation.dto.CourseChatRequest;
+import com.pozit.pozitserver.recommendation.dto.CourseChatResponse;
 import com.pozit.pozitserver.recommendation.dto.RecommendedCourseResponse;
 import com.pozit.pozitserver.recommendation.dto.RecommendedCourseSaveRequest;
+import com.pozit.pozitserver.recommendation.service.CourseChatService;
+import com.pozit.pozitserver.recommendation.service.CourseChatStreamService;
 import com.pozit.pozitserver.recommendation.service.CourseRecommendationService;
 import com.pozit.pozitserver.user.domain.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,11 +15,13 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @RequestMapping("/api/travels/{travelId}/recommendations")
@@ -24,6 +30,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class CourseRecommendationController {
 
     private final CourseRecommendationService courseRecommendationService;
+    private final CourseChatService courseChatService;
+    private final CourseChatStreamService courseChatStreamService;
 
     @PostMapping("/preview")
     @Operation(
@@ -49,5 +57,31 @@ public class CourseRecommendationController {
     ) {
         courseRecommendationService.commit(travelId, currentUser, request);
         return SuccessResponse.ok();
+    }
+
+    @PostMapping("/chat")
+    @Operation(
+            summary = "LLM 코스 수정 제안",
+            description = "저장된 코스와 사용자 메시지를 기반으로 LLM이 수정 의도를 추출하고, 관광정보 API 후보를 활용해 적용 가능한 코스 수정안을 반환합니다. DB의 코스 장소는 변경하지 않습니다."
+    )
+    public SuccessResponse<CourseChatResponse> chat(
+            @CurrentUser User currentUser,
+            @Parameter(description = "여행 ID") @PathVariable Long travelId,
+            @Valid @RequestBody CourseChatRequest request
+    ) {
+        return SuccessResponse.ok(courseChatService.suggest(travelId, currentUser, request));
+    }
+
+    @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(
+            summary = "LLM 코스 수정 제안 스트리밍",
+            description = "챗봇 응답 문장을 SSE message 이벤트로 한 글자씩 전송하고, 마지막 result 이벤트로 적용 가능한 전체 수정안을 반환합니다."
+    )
+    public SseEmitter chatStream(
+            @CurrentUser User currentUser,
+            @Parameter(description = "여행 ID") @PathVariable Long travelId,
+            @Valid @RequestBody CourseChatRequest request
+    ) {
+        return courseChatStreamService.stream(travelId, currentUser, request);
     }
 }
