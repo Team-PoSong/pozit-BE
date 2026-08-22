@@ -51,8 +51,8 @@ public class CourseRecommendationController {
 
     @PostMapping("/preview/card")
     @Operation(
-            summary = "여행 코스 추천 카드 미리보기",
-            description = "추천 코스를 여행 카드 UI로 바로 표시할 수 있도록 카드 메타 정보와 추천 코스 원본을 함께 반환합니다. 추천 결과는 DB에 저장하지 않습니다."
+            summary = "여행 코스 추천 카드 조회",
+            description = "여행 조건과 관광정보 API 후보를 기반으로 추천 코스를 생성하고, 카드 UI에 필요한 요약 정보와 상세 조회용 previewId를 반환합니다. 추천 상세는 일정 시간 동안 임시 저장되며 DB에는 저장하지 않습니다. 같은 지역의 공개된 타인 여행 카드는 좋아요 수가 많은 순서로 최대 2개를 함께 반환합니다."
     )
     public SuccessResponse<RecommendedCourseCardResponse> previewCard(
             @CurrentUser User currentUser,

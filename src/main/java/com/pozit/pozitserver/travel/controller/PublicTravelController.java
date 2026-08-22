@@ -76,6 +76,14 @@ public class PublicTravelController {
         return SuccessResponse.ok(travelService.getPublicTravels(currentUser, regionCode, startDate, endDate, tagIds, keyword));
     }
 
+    @GetMapping("/travels/popular/cards")
+    @Operation(summary = "인기 공개 여행 카드 조회", description = "지역과 상관없이 공개 설정된 완료 여행 중 좋아요 수가 많은 순서로 최대 3개를 카드 형태로 조회합니다. 로그인한 사용자의 경우 본인이 리더 또는 멤버로 참여한 여행은 제외됩니다.")
+    public SuccessResponse<List<PublicTravelListResponse>> getPopularPublicTravelCards(
+            @CurrentUser(required = false) User currentUser
+    ) {
+        return SuccessResponse.ok(travelService.getPopularPublicTravelCards(currentUser));
+    }
+
     @GetMapping("/travels/{travelId}")
     @Operation(summary = "공개 여행 상세 조회", description = "공개 설정된 완료 여행의 상세 정보를 조회합니다. 비로그인 상태에서도 조회할 수 있습니다.")
     @ApiResponses({
