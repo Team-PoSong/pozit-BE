@@ -13,4 +13,6 @@ public interface TravelRepositoryCustom {
             List<Long> tagIds,
             String keyword
     );
+
+    List<Travel> findPopularPublicTravels(List<Long> excludedTravelIds, int limit);
 }

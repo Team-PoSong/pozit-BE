@@ -8,6 +8,7 @@ import com.pozit.pozitserver.course.repository.CourseSpotRepository;
 import com.pozit.pozitserver.course.repository.TouristSpotRepository;
 import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
+import com.pozit.pozitserver.recommendation.dto.RecommendedCourseCardResponse;
 import com.pozit.pozitserver.recommendation.dto.RecommendedCourseResponse;
 import com.pozit.pozitserver.recommendation.dto.RecommendedCourseSaveRequest;
 import com.pozit.pozitserver.recommendation.model.CandidatePlace;
@@ -21,15 +22,19 @@ import com.pozit.pozitserver.travel.domain.Travel;
 import com.pozit.pozitserver.travel.domain.TravelMember;
 import com.pozit.pozitserver.travel.domain.TravelMemberRole;
 import com.pozit.pozitserver.travel.domain.TravelStatus;
+import com.pozit.pozitserver.travel.dto.response.PublicTravelListResponse;
 import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
+import com.pozit.pozitserver.travel.service.TravelService;
 import com.pozit.pozitserver.user.domain.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -58,12 +63,76 @@ public class CourseRecommendationService {
     private final ContextualRankingService contextualRankingService;
     private final DiversityRerankingService diversityRerankingService;
     private final RouteOptimizationService routeOptimizationService;
+    private final TravelService travelService;
+    private final RecommendationPreviewStore recommendationPreviewStore;
 
     public RecommendedCourseResponse preview(Long travelId, User currentUser) {
         Travel travel = travelRepository.findById(travelId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
         validateMember(travel, currentUser);
 
+        return createPreview(travel);
+    }
+
+    public RecommendedCourseCardResponse previewCard(Long travelId, User currentUser) {
+        Travel travel = travelRepository.findById(travelId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
+        validateMember(travel, currentUser);
+
+        RecommendedCourseResponse recommendedCourse = createPreview(travel);
+        String previewId = recommendationPreviewStore.save(travel.getId(), currentUser.getId(), recommendedCourse);
+        List<String> tags = travelTagRepository.findTagNamesByTravelId(travel.getId());
+        if (tags.isEmpty()) {
+            tags = toCommand(travel).tags().stream()
+                    .map(RecommendationTag::koreanName)
+                    .toList();
+        }
+
+        List<RecommendedCourseResponse.RecommendedPlaceResponse> previewPlaces = recommendedCourse.days().stream()
+                .flatMap(day -> day.places().stream())
+                .toList();
+
+        List<String> imageUrls = previewPlaces.stream()
+                .map(RecommendedCourseResponse.RecommendedPlaceResponse::imageUrl)
+                .filter(imageUrl -> imageUrl != null && !imageUrl.isBlank())
+                .distinct()
+                .limit(3)
+                .toList();
+        if (imageUrls.isEmpty() && travel.getBackgroundImageUrl() != null && !travel.getBackgroundImageUrl().isBlank()) {
+            imageUrls = List.of(travel.getBackgroundImageUrl());
+        }
+
+        return new RecommendedCourseCardResponse(
+                previewId,
+                RecommendationPreviewStore.TTL_SECONDS,
+                travel.getId(),
+                "Pozit Pick!",
+                createCardTitle(travel),
+                travel.getTitle(),
+                travel.getDestination(),
+                travel.getStartDate(),
+                travel.getEndDate(),
+                recommendedCourse.dayCount(),
+                Math.max(recommendedCourse.dayCount() - 1, 0),
+                createPeriodText(travel.getStartDate(), travel.getEndDate()),
+                imageUrls.isEmpty() ? null : imageUrls.get(0),
+                imageUrls,
+                tags,
+                Math.toIntExact(travelMemberRepository.countByTravel(travel)),
+                previewPlaces.size(),
+                findRelatedPublicTravels(travel, currentUser)
+        );
+    }
+
+    public RecommendedCourseResponse getPreview(Long travelId, User currentUser, String previewId) {
+        Travel travel = travelRepository.findById(travelId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
+        validateMember(travel, currentUser);
+
+        return recommendationPreviewStore.find(previewId, travel.getId(), currentUser.getId());
+    }
+
+    private RecommendedCourseResponse createPreview(Travel travel) {
         CourseRecommendCommand command = toCommand(travel);
         List<CandidatePlace> candidates = candidateProvider.findCandidates(command);
         double[] userVector = userPreferenceVectorFactory.create(command.tags());
@@ -76,6 +145,71 @@ public class CourseRecommendationService {
         List<ScoredPlace> diversifiedPlaces = diversityRerankingService.rerank(rankedPlaces);
 
         return routeOptimizationService.createCourse(diversifiedPlaces, command);
+    }
+
+    private String createCardTitle(Travel travel) {
+        return travel.getStartDate().getMonthValue() + "월 추천, "
+                + travel.getDestination() + topicParticle(travel.getDestination()) + " 어때요?";
+    }
+
+    private String createPeriodText(LocalDate startDate, LocalDate endDate) {
+        int dayCount = (int) (endDate.toEpochDay() - startDate.toEpochDay()) + 1;
+        int nightCount = Math.max(dayCount - 1, 0);
+        return startDate.getMonthValue() + "/" + startDate.getDayOfMonth()
+                + " - "
+                + endDate.getMonthValue() + "/" + endDate.getDayOfMonth()
+                + " · "
+                + nightCount + "박 " + dayCount + "일";
+    }
+
+    private String topicParticle(String value) {
+        if (value == null || value.isBlank()) {
+            return "은";
+        }
+
+        char lastChar = value.trim().charAt(value.trim().length() - 1);
+        if (lastChar < '가' || lastChar > '힣') {
+            return "은";
+        }
+
+        return (lastChar - '가') % 28 == 0 ? "는" : "은";
+    }
+
+    private List<PublicTravelListResponse> findRelatedPublicTravels(Travel travel, User currentUser) {
+        List<PublicTravelListResponse> publicTravels = travelService.getPublicTravels(
+                currentUser,
+                travel.getRegionCode(),
+                null,
+                null,
+                null,
+                null
+        );
+
+        if (publicTravels.isEmpty()) {
+            return List.of();
+        }
+
+        boolean hasLike = publicTravels.stream()
+                .anyMatch(publicTravel -> publicTravel.likeCount() != null && publicTravel.likeCount() > 0);
+        if (!hasLike) {
+            List<PublicTravelListResponse> shuffledTravels = new ArrayList<>(publicTravels);
+            Collections.shuffle(shuffledTravels);
+            return shuffledTravels.stream()
+                    .limit(2)
+                    .toList();
+        }
+
+        return publicTravels.stream()
+                .sorted(Comparator.comparing(
+                                (PublicTravelListResponse publicTravel) -> publicTravel.likeCount() == null
+                                        ? 0
+                                        : publicTravel.likeCount()
+                        )
+                        .reversed()
+                        .thenComparing(PublicTravelListResponse::endDate, Comparator.reverseOrder())
+                        .thenComparing(PublicTravelListResponse::travelId, Comparator.reverseOrder()))
+                .limit(2)
+                .toList();
     }
 
     @Transactional
