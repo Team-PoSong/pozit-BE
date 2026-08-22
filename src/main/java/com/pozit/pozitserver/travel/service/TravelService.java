@@ -63,6 +63,7 @@ import java.util.stream.Collectors;
 public class TravelService {
 
     private static final int SEARCH_LIMIT = 10;
+    private static final int POPULAR_PUBLIC_TRAVEL_CARD_LIMIT = 3;
     private static final String INVITE_CODE_UNIQUE_CONSTRAINT_NAME = "uk_travel_invite_code";
     private static final Duration BACKGROUND_IMAGE_PRESIGNED_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final Duration BACKGROUND_IMAGE_GET_URL_EXPIRATION = Duration.ofMinutes(10);
@@ -508,6 +509,21 @@ public class TravelService {
                     .filter(travel -> !myTravelIds.contains(travel.getId()))
                     .toList();
         }
+
+        return buildPublicTravelListResponses(travels, currentUser);
+    }
+
+    public List<PublicTravelListResponse> getPopularPublicTravelCards(User currentUser) {
+        List<Long> excludedTravelIds = currentUser == null
+                ? List.of()
+                : travelMemberRepository.findAllWithTravelByUser(currentUser).stream()
+                        .map(m -> m.getTravel().getId())
+                        .toList();
+
+        List<Travel> travels = travelRepository.findPopularPublicTravels(
+                excludedTravelIds,
+                POPULAR_PUBLIC_TRAVEL_CARD_LIMIT
+        );
 
         return buildPublicTravelListResponses(travels, currentUser);
     }
