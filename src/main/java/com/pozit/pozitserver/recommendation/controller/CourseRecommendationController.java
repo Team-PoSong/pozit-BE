@@ -11,12 +11,14 @@ import com.pozit.pozitserver.recommendation.service.CourseChatService;
 import com.pozit.pozitserver.recommendation.service.CourseChatStreamService;
 import com.pozit.pozitserver.recommendation.service.CourseRecommendationService;
 import com.pozit.pozitserver.user.domain.User;
+import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,6 +37,7 @@ public class CourseRecommendationController {
     private final CourseChatStreamService courseChatStreamService;
 
     @PostMapping("/preview")
+    @Hidden
     @Operation(
             summary = "여행 코스 추천 미리보기",
             description = "여행 조건과 관광정보 API 후보를 기반으로 날짜별 추천 코스를 생성합니다. 추천 결과는 DB에 저장하지 않습니다."
@@ -56,6 +59,19 @@ public class CourseRecommendationController {
             @Parameter(description = "여행 ID") @PathVariable Long travelId
     ) {
         return SuccessResponse.ok(courseRecommendationService.previewCard(travelId, currentUser));
+    }
+
+    @GetMapping("/previews/{previewId}")
+    @Operation(
+            summary = "여행 코스 추천 미리보기 상세 조회",
+            description = "추천 카드 미리보기에서 발급된 previewId로 날짜별 추천 코스 상세를 조회합니다. 미리보기 데이터는 일정 시간 후 만료됩니다."
+    )
+    public SuccessResponse<RecommendedCourseResponse> getPreview(
+            @CurrentUser User currentUser,
+            @Parameter(description = "여행 ID") @PathVariable Long travelId,
+            @Parameter(description = "추천 미리보기 ID") @PathVariable String previewId
+    ) {
+        return SuccessResponse.ok(courseRecommendationService.getPreview(travelId, currentUser, previewId));
     }
 
     @PostMapping("/commit")

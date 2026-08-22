@@ -1,9 +1,13 @@
 package com.pozit.pozitserver.recommendation.dto;
 
+import com.pozit.pozitserver.travel.dto.response.PublicTravelListResponse;
+
 import java.time.LocalDate;
 import java.util.List;
 
 public record RecommendedCourseCardResponse(
+        String previewId,
+        long previewExpiresInSeconds,
         Long travelId,
         String badge,
         String cardTitle,
@@ -19,16 +23,6 @@ public record RecommendedCourseCardResponse(
         List<String> tags,
         int memberCount,
         int placeCount,
-        List<PreviewPlaceResponse> previewPlaces,
-        RecommendedCourseResponse recommendedCourse
+        List<PublicTravelListResponse> relatedPublicTravels
 ) {
-
-    public record PreviewPlaceResponse(
-            int dayNumber,
-            int orderIndex,
-            String title,
-            String address,
-            String imageUrl
-    ) {
-    }
 }

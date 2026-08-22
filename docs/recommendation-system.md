@@ -89,8 +89,10 @@ POST /api/travels/{travelId}/recommendations/preview
 POST /api/travels/{travelId}/recommendations/preview/card
 ```
 
-추천 결과를 여행 카드 UI에 바로 표시할 수 있도록 카드 메타 정보와 원본 추천 코스를 함께 반환한다.
+추천 결과를 여행 카드 UI에 바로 표시할 수 있도록 카드 메타 정보와 추천 상세 조회용 `previewId`를 반환한다.
 추천 결과는 DB에 저장하지 않는다.
+추천 상세는 Redis에 30분 동안 임시 저장된다.
+같은 지역의 공개된 타인 여행은 좋아요 수가 많은 순서로 최대 2개를 함께 반환하고, 좋아요 수로 정렬할 수 없는 경우 랜덤으로 최대 2개를 반환한다.
 
 응답 예시:
 
@@ -100,6 +102,8 @@ POST /api/travels/{travelId}/recommendations/preview/card
   "code": "COMMON200",
   "message": "요청에 성공했습니다.",
   "result": {
+    "previewId": "7a0a4c4b-4d8d-4d66-bca1-5b1f5ec2f22e",
+    "previewExpiresInSeconds": 1800,
     "travelId": 1,
     "badge": "Pozit Pick!",
     "cardTitle": "8월 추천, 강릉은 어때요?",
@@ -115,20 +119,70 @@ POST /api/travels/{travelId}/recommendations/preview/card
     "tags": ["문화", "힐링"],
     "memberCount": 2,
     "placeCount": 6,
-    "previewPlaces": [
+    "relatedPublicTravels": [
+      {
+        "travelId": 10,
+        "title": "강릉 메이트",
+        "destination": "강릉",
+        "startDate": "2026-07-02",
+        "endDate": "2026-07-03",
+        "status": "DONE",
+        "isPublic": true,
+        "backgroundImageUrl": "https://...",
+        "completionRate": 100,
+        "tags": ["문화", "힐링"],
+        "leaderNickname": "pozi",
+        "memberCount": 2,
+        "likeCount": 12,
+        "isLiked": false
+      }
+    ]
+  }
+}
+```
+
+### 추천 미리보기 상세 조회
+
+```http
+GET /api/travels/{travelId}/recommendations/previews/{previewId}
+```
+
+추천 카드 미리보기에서 발급된 `previewId`로 날짜별 추천 코스 상세를 조회한다.
+`previewId`는 발급받은 사용자와 여행에만 유효하며, 만료되면 404를 반환한다.
+
+응답 예시:
+
+```json
+{
+  "isSuccess": true,
+  "code": "COMMON200",
+  "message": "요청에 성공했습니다.",
+  "result": {
+    "travelId": 1,
+    "dayCount": 2,
+    "days": [
       {
         "dayNumber": 1,
-        "orderIndex": 1,
-        "title": "경포해변",
-        "address": "강원특별자치도 강릉시 ...",
-        "imageUrl": "https://..."
+        "date": "2026-08-01",
+        "places": [
+          {
+            "orderIndex": 1,
+            "contentId": "126508",
+            "contentTypeId": "12",
+            "title": "경포해변",
+            "address": "강원특별자치도 강릉시 ...",
+            "imageUrl": "https://...",
+            "latitude": 37.805,
+            "longitude": 128.908,
+            "stayMinutes": 90,
+            "finalScore": 0.684,
+            "contentScore": 0.719,
+            "transportationScore": 0.7,
+            "qualityScore": 0.9
+          }
+        ]
       }
-    ],
-    "recommendedCourse": {
-      "travelId": 1,
-      "dayCount": 2,
-      "days": []
-    }
+    ]
   }
 }
 ```
