@@ -83,6 +83,56 @@ POST /api/travels/{travelId}/recommendations/preview
 }
 ```
 
+### 추천 카드 미리보기
+
+```http
+POST /api/travels/{travelId}/recommendations/preview/card
+```
+
+추천 결과를 여행 카드 UI에 바로 표시할 수 있도록 카드 메타 정보와 원본 추천 코스를 함께 반환한다.
+추천 결과는 DB에 저장하지 않는다.
+
+응답 예시:
+
+```json
+{
+  "isSuccess": true,
+  "code": "COMMON200",
+  "message": "요청에 성공했습니다.",
+  "result": {
+    "travelId": 1,
+    "badge": "Pozit Pick!",
+    "cardTitle": "8월 추천, 강릉은 어때요?",
+    "travelTitle": "강릉 여행",
+    "destination": "강릉",
+    "startDate": "2026-08-01",
+    "endDate": "2026-08-02",
+    "dayCount": 2,
+    "nightCount": 1,
+    "periodText": "8/1 - 8/2 · 1박 2일",
+    "thumbnailImageUrl": "https://...",
+    "imageUrls": ["https://..."],
+    "tags": ["문화", "힐링"],
+    "memberCount": 2,
+    "placeCount": 6,
+    "previewPlaces": [
+      {
+        "dayNumber": 1,
+        "orderIndex": 1,
+        "title": "경포해변",
+        "address": "강원특별자치도 강릉시 ...",
+        "imageUrl": "https://..."
+      }
+    ],
+    "recommendedCourse": {
+      "travelId": 1,
+      "dayCount": 2,
+      "days": []
+    }
+  }
+}
+```
+
 ## 3. 전체 처리 흐름
 
 ```text

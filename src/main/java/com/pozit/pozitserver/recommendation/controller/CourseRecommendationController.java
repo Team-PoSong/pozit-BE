@@ -4,6 +4,7 @@ import com.pozit.pozitserver.global.auth.annotation.CurrentUser;
 import com.pozit.pozitserver.global.response.SuccessResponse;
 import com.pozit.pozitserver.recommendation.dto.CourseChatRequest;
 import com.pozit.pozitserver.recommendation.dto.CourseChatResponse;
+import com.pozit.pozitserver.recommendation.dto.RecommendedCourseCardResponse;
 import com.pozit.pozitserver.recommendation.dto.RecommendedCourseResponse;
 import com.pozit.pozitserver.recommendation.dto.RecommendedCourseSaveRequest;
 import com.pozit.pozitserver.recommendation.service.CourseChatService;
@@ -43,6 +44,18 @@ public class CourseRecommendationController {
             @Parameter(description = "여행 ID") @PathVariable Long travelId
     ) {
         return SuccessResponse.ok(courseRecommendationService.preview(travelId, currentUser));
+    }
+
+    @PostMapping("/preview/card")
+    @Operation(
+            summary = "여행 코스 추천 카드 미리보기",
+            description = "추천 코스를 여행 카드 UI로 바로 표시할 수 있도록 카드 메타 정보와 추천 코스 원본을 함께 반환합니다. 추천 결과는 DB에 저장하지 않습니다."
+    )
+    public SuccessResponse<RecommendedCourseCardResponse> previewCard(
+            @CurrentUser User currentUser,
+            @Parameter(description = "여행 ID") @PathVariable Long travelId
+    ) {
+        return SuccessResponse.ok(courseRecommendationService.previewCard(travelId, currentUser));
     }
 
     @PostMapping("/commit")
