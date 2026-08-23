@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Mono;
 import tools.jackson.databind.ObjectMapper;
 
@@ -102,30 +103,40 @@ public class TourApiClient {
             int size,
             java.util.function.Consumer<org.springframework.web.util.UriBuilder> customizer
     ) {
-        return tourApiWebClient.get()
-                .uri(uriBuilder -> {
-                    uriBuilder.path(path)
-                            .queryParam("serviceKey", properties.serviceKey())
-                            .queryParam("MobileOS", properties.mobileOs())
-                            .queryParam("MobileApp", properties.mobileApp())
-                            .queryParam("_type", "json")
-                            .queryParam("pageNo", page)
-                            .queryParam("numOfRows", size)
-                            .queryParam("arrange", "A");
-                    customizer.accept(uriBuilder);
-                    return uriBuilder.build();
-                })
-                .retrieve()
-                .onStatus(HttpStatusCode::isError, response->
-                        response.bodyToMono(String.class)
-                                .defaultIfEmpty("")
-                                .flatMap(body-> Mono.error(
-                                        new BusinessException(ErrorCode.TOUR_API_REQUEST_FAILED)
-                                )))
-                .bodyToMono(String.class)
-                .map(this::deserializeTourApiResponse)
-                .timeout(Duration.ofSeconds(5))
-                .block();
+        try {
+            return tourApiWebClient.get()
+                    .uri(uriBuilder -> {
+                        uriBuilder.path(path)
+                                .queryParam("serviceKey", properties.serviceKey())
+                                .queryParam("MobileOS", properties.mobileOs())
+                                .queryParam("MobileApp", properties.mobileApp())
+                                .queryParam("_type", "json")
+                                .queryParam("pageNo", page)
+                                .queryParam("numOfRows", size)
+                                .queryParam("arrange", "A");
+                        customizer.accept(uriBuilder);
+                        return uriBuilder.build();
+                    })
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, response ->
+                            response.bodyToMono(String.class)
+                                    .defaultIfEmpty("")
+                                    .flatMap(body -> Mono.error(
+                                            new BusinessException(ErrorCode.TOUR_API_REQUEST_FAILED)
+                                    )))
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofSeconds(5))
+                    .map(this::deserializeTourApiResponse)
+                    .block();
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            Throwable unwrapped = Exceptions.unwrap(exception);
+            if (unwrapped instanceof BusinessException businessException) {
+                throw businessException;
+            }
+            throw new BusinessException(ErrorCode.TOUR_API_REQUEST_FAILED, exception);
+        }
     }
 
     private TourApiResponse deserializeTourApiResponse(String body) {
