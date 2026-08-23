@@ -8,5 +8,8 @@ public record SupportInfoResponse(
         TermResponse serviceTerm,
 
         @Schema(description = "개인정보처리방침")
-        TermResponse privacyPolicy
+        TermResponse privacyPolicy,
+
+        @Schema(description = "위치기반서비스 이용약관")
+        TermResponse locationTerm
 ) {}

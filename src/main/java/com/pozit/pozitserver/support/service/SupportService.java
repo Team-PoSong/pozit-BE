@@ -38,7 +38,8 @@ public class SupportService {
     public SupportInfoResponse getSupportInfo() {
         return new SupportInfoResponse(
                 getLatestTerm(TermType.SERVICE),
-                getLatestTerm(TermType.PRIVACY)
+                getLatestTerm(TermType.PRIVACY),
+                getLatestTerm(TermType.LOCATION)
         );
     }
 
