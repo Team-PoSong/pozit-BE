@@ -7,7 +7,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -84,6 +87,23 @@ public class GlobalExceptionHandler {
                         ErrorCode.COMMON404.getCode(),
                         ErrorCode.COMMON404.getMessage()
                 ));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleHttpRequestMethodNotSupportedException(HttpRequestMethodNotSupportedException e) {
+        return ResponseEntity
+                .status(ErrorCode.COMMON405.getHttpStatus())
+                .body(ErrorResponse.of(
+                        ErrorCode.COMMON405.getCode(),
+                        ErrorCode.COMMON405.getMessage()
+                ));
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<Void> handleHttpMediaTypeNotAcceptableException(HttpMediaTypeNotAcceptableException e) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_ACCEPTABLE)
+                .build();
     }
 
     @ExceptionHandler(Exception.class)
