@@ -27,7 +27,7 @@ public class SupportController {
     private final SupportService supportService;
 
     @GetMapping("/info")
-    @Operation(summary = "서비스 안내 조회", description = "이용약관 및 개인정보 처리방침의 최신 버전을 조회합니다.")
+    @Operation(summary = "서비스 안내 조회", description = "이용약관, 개인정보 처리방침 및 위치기반서비스 이용약관의 최신 버전을 조회합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(
