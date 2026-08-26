@@ -28,4 +28,6 @@ public interface TravelRepository extends JpaRepository<Travel, Long>, TravelRep
     Optional<Travel> findByIdForUpdate(@Param("id") Long id);
 
     List<Travel> findByStartDate(LocalDate startDate);
+
+    List<Travel> findByStatusNotAndEndDateBefore(TravelStatus status, LocalDate endDate);
 }
