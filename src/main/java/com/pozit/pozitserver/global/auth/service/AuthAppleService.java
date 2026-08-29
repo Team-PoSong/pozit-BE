@@ -42,12 +42,6 @@ public class AuthAppleService {
 
         if (optionalUser.isPresent()) {
             user = optionalUser.get();
-            user.updateProfile(authNicknameService.resolveAvailableNickname(
-                    nickname,
-                    user.getId(),
-                    SocialProvider.APPLE,
-                    socialId
-            ));
         } else {
             isNewUser = true;
             user = createUser(socialId, nickname);

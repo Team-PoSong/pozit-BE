@@ -50,12 +50,6 @@ public class AuthKakaoService {
 
         if (optionalUser.isPresent()) {
             user = optionalUser.get();
-            user.updateProfile(authNicknameService.resolveAvailableNickname(
-                    nickname,
-                    user.getId(),
-                    SocialProvider.KAKAO,
-                    socialId
-            ));
         } else {
             isNewUser = true;
             user = createUser(socialId, nickname);

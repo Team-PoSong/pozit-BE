@@ -19,6 +19,7 @@ import com.pozit.pozitserver.pozing.dto.request.PozingSaveRequest;
 import com.pozit.pozitserver.pozing.dto.response.PozingSaveResponse;
 import com.pozit.pozitserver.pozing.repository.PozingEditJobRepository;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
+import com.pozit.pozitserver.pozing.repository.TimelapseManifestRepository;
 import com.pozit.pozitserver.tag.domain.Tag;
 import com.pozit.pozitserver.tag.domain.TravelTag;
 import com.pozit.pozitserver.tag.dto.response.TagResponse;
@@ -79,6 +80,7 @@ public class TravelService {
     private final CourseSpotRepository courseSpotRepository;
     private final PozingRepository pozingRepository;
     private final PozingEditJobRepository pozingEditJobRepository;
+    private final TimelapseManifestRepository timelapseManifestRepository;
     private final LikeRepository likeRepository;
     private final S3Service s3Service;
     private final NotificationService notificationService;
@@ -1010,6 +1012,7 @@ public class TravelService {
         editJobs.stream().map(PozingEditJob::getResultS3Key).filter(Objects::nonNull).forEach(objectKeysToDelete::add);
         String backgroundImageKey = travel.getBackgroundImageUrl();
 
+        timelapseManifestRepository.deleteAllInBatch(timelapseManifestRepository.findByTravel(travel));
         pozingEditJobRepository.deleteAllInBatch(editJobs);
         pozingRepository.deleteAllInBatch(pozings);
         courseSpotRepository.deleteAllInBatch(spots);
