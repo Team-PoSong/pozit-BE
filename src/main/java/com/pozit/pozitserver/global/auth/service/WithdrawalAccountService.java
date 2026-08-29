@@ -8,7 +8,9 @@ import com.pozit.pozitserver.global.s3.S3Service;
 import com.pozit.pozitserver.like.repository.LikeRepository;
 import com.pozit.pozitserver.notification.service.NotificationService;
 import com.pozit.pozitserver.pozing.domain.Pozing;
+import com.pozit.pozitserver.pozing.repository.PozingEditJobRepository;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
+import com.pozit.pozitserver.pozing.repository.TimelapseManifestRepository;
 import com.pozit.pozitserver.support.repository.FeedbackRepository;
 import com.pozit.pozitserver.tag.repository.TravelTagRepository;
 import com.pozit.pozitserver.travel.domain.Travel;
@@ -42,6 +44,8 @@ public class WithdrawalAccountService {
     private final CourseRepository courseRepository;
     private final CourseSpotRepository courseSpotRepository;
     private final PozingRepository pozingRepository;
+    private final PozingEditJobRepository pozingEditJobRepository;
+    private final TimelapseManifestRepository timelapseManifestRepository;
     private final LikeRepository likeRepository;
     private final FeedbackRepository feedbackRepository;
     private final S3Service s3Service;
@@ -112,6 +116,8 @@ public class WithdrawalAccountService {
         travelTagRepository.deleteAllInBatch(travelTagRepository.findByTravel(travel));
         notificationService.deleteByTravel(travel);
         travelMemberRepository.deleteAllInBatch(travelMemberRepository.findByTravel(travel));
+        timelapseManifestRepository.deleteAllInBatch(timelapseManifestRepository.findByTravel(travel));
+        pozingEditJobRepository.deleteAllInBatch(pozingEditJobRepository.findByTravel(travel));
         travelRepository.deleteAllInBatch(List.of(travel));
     }
 
