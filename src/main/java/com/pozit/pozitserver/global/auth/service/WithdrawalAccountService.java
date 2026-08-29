@@ -112,7 +112,7 @@ public class WithdrawalAccountService {
         travelTagRepository.deleteAllInBatch(travelTagRepository.findByTravel(travel));
         notificationService.deleteByTravel(travel);
         travelMemberRepository.deleteAllInBatch(travelMemberRepository.findByTravel(travel));
-        travelRepository.delete(travel);
+        travelRepository.deleteAllInBatch(List.of(travel));
     }
 
     private void removeUserOwnedData(User user, List<String> objectKeysToDelete) {
