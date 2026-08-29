@@ -8,6 +8,7 @@ import com.pozit.pozitserver.global.s3.S3Service;
 import com.pozit.pozitserver.like.repository.LikeRepository;
 import com.pozit.pozitserver.notification.service.NotificationService;
 import com.pozit.pozitserver.pozing.domain.Pozing;
+import com.pozit.pozitserver.pozing.domain.PozingEditJob;
 import com.pozit.pozitserver.pozing.repository.PozingEditJobRepository;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
 import com.pozit.pozitserver.pozing.repository.TimelapseManifestRepository;
@@ -116,8 +117,15 @@ public class WithdrawalAccountService {
         travelTagRepository.deleteAllInBatch(travelTagRepository.findByTravel(travel));
         notificationService.deleteByTravel(travel);
         travelMemberRepository.deleteAllInBatch(travelMemberRepository.findByTravel(travel));
+
+        List<PozingEditJob> editJobs = pozingEditJobRepository.findByTravel(travel);
+        objectKeysToDelete.addAll(editJobs.stream()
+                .map(PozingEditJob::getResultS3Key)
+                .filter(Objects::nonNull)
+                .toList());
+
         timelapseManifestRepository.deleteAllInBatch(timelapseManifestRepository.findByTravel(travel));
-        pozingEditJobRepository.deleteAllInBatch(pozingEditJobRepository.findByTravel(travel));
+        pozingEditJobRepository.deleteAllInBatch(editJobs);
         travelRepository.deleteAllInBatch(List.of(travel));
     }
 
