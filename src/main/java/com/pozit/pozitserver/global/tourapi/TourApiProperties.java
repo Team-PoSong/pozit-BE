@@ -7,6 +7,12 @@ public record TourApiProperties (
         String baseUrl,
         String serviceKey,
         String mobileOs,
-        String mobileApp
+        String mobileApp,
+        long timeoutSeconds
 ){
+    public TourApiProperties {
+        if (timeoutSeconds <= 0) {
+            timeoutSeconds = 20;
+        }
+    }
 }

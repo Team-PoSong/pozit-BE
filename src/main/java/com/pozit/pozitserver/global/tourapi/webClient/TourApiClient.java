@@ -5,6 +5,7 @@ import com.pozit.pozitserver.global.exception.BusinessException;
 import com.pozit.pozitserver.global.exception.ErrorCode;
 import com.pozit.pozitserver.global.tourapi.TourApiProperties;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -16,6 +17,7 @@ import java.time.Duration;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class TourApiClient {
 
     private final WebClient tourApiWebClient;
@@ -121,11 +123,15 @@ public class TourApiClient {
                     .onStatus(HttpStatusCode::isError, response ->
                             response.bodyToMono(String.class)
                                     .defaultIfEmpty("")
-                                    .flatMap(body -> Mono.error(
-                                            new BusinessException(ErrorCode.TOUR_API_REQUEST_FAILED)
-                                    )))
+                                    .flatMap(body -> {
+                                        log.warn("Tour API request failed. status={}, body={}",
+                                                response.statusCode().value(),
+                                                abbreviate(body, 1000)
+                                        );
+                                        return Mono.error(new BusinessException(ErrorCode.TOUR_API_REQUEST_FAILED));
+                                    }))
                     .bodyToMono(String.class)
-                    .timeout(Duration.ofSeconds(5))
+                    .timeout(Duration.ofSeconds(properties.timeoutSeconds()))
                     .map(this::deserializeTourApiResponse)
                     .block();
         } catch (BusinessException exception) {
@@ -135,6 +141,11 @@ public class TourApiClient {
             if (unwrapped instanceof BusinessException businessException) {
                 throw businessException;
             }
+            log.warn("Tour API request failed before receiving a response. path={}, timeoutSeconds={}",
+                    path,
+                    properties.timeoutSeconds(),
+                    exception
+            );
             throw new BusinessException(ErrorCode.TOUR_API_REQUEST_FAILED, exception);
         }
     }
@@ -150,5 +161,12 @@ public class TourApiClient {
         } catch (Exception exception) {
             throw new BusinessException(ErrorCode.TOUR_API_REQUEST_FAILED);
         }
+    }
+
+    private String abbreviate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength) + "...";
     }
 }

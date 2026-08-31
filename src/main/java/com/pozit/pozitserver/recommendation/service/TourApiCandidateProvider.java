@@ -105,22 +105,26 @@ public class TourApiCandidateProvider {
         Map<String, CandidatePlace> candidatesByContentId = new LinkedHashMap<>();
 
         for (String contentTypeId : contentTypeIds) {
-            TourApiResponse response = tourApiClient.findAreaBasedPlaces(
-                    regionCodes.legalDongRegionCode(),
-                    regionCodes.legalDongSigunguCode(),
-                    regionCodes.areaCode(),
-                    regionCodes.sigunguCode(),
-                    contentTypeId,
-                    PAGE,
-                    SIZE_PER_QUERY
-            );
-            validateResponse(response);
+            try {
+                TourApiResponse response = tourApiClient.findAreaBasedPlaces(
+                        regionCodes.legalDongRegionCode(),
+                        regionCodes.legalDongSigunguCode(),
+                        regionCodes.areaCode(),
+                        regionCodes.sigunguCode(),
+                        contentTypeId,
+                        PAGE,
+                        SIZE_PER_QUERY
+                );
+                validateResponse(response);
 
-            extractItems(response).stream()
-                    .map(CandidatePlace::from)
-                    .filter(this::isUsable)
-                    .filter(place -> regionCodeResolver.matches(place, regionCodes))
-                    .forEach(place -> candidatesByContentId.putIfAbsent(place.contentId(), place));
+                extractItems(response).stream()
+                        .map(CandidatePlace::from)
+                        .filter(this::isUsable)
+                        .filter(place -> regionCodeResolver.matches(place, regionCodes))
+                        .forEach(place -> candidatesByContentId.putIfAbsent(place.contentId(), place));
+            } catch (RuntimeException exception) {
+                log.warn("Tour API content type candidate collection failed. contentTypeId={}", contentTypeId, exception);
+            }
         }
 
         return candidatesByContentId;
@@ -136,14 +140,18 @@ public class TourApiCandidateProvider {
             return candidatesByContentId;
         }
 
-        TourApiResponse response = tourApiClient.searchPlaces(keyword, PAGE, SIZE_PER_QUERY);
-        validateResponse(response);
+        try {
+            TourApiResponse response = tourApiClient.searchPlaces(keyword, PAGE, SIZE_PER_QUERY);
+            validateResponse(response);
 
-        extractItems(response).stream()
-                .map(CandidatePlace::from)
-                .filter(this::isUsable)
-                .filter(place -> regionCodeResolver.matches(place, regionCodes))
-                .forEach(place -> candidatesByContentId.putIfAbsent(place.contentId(), place));
+            extractItems(response).stream()
+                    .map(CandidatePlace::from)
+                    .filter(this::isUsable)
+                    .filter(place -> regionCodeResolver.matches(place, regionCodes))
+                    .forEach(place -> candidatesByContentId.putIfAbsent(place.contentId(), place));
+        } catch (RuntimeException exception) {
+            log.warn("Tour API keyword candidate collection failed. keyword={}", keyword, exception);
+        }
 
         return candidatesByContentId;
     }
