@@ -6,6 +6,7 @@ import com.pozit.pozitserver.global.exception.ErrorCode;
 import com.pozit.pozitserver.global.tourapi.webClient.TourApiClient;
 import com.pozit.pozitserver.recommendation.model.CandidatePlace;
 import com.pozit.pozitserver.recommendation.model.CourseRecommendCommand;
+import com.pozit.pozitserver.recommendation.model.RecommendationTag;
 import com.pozit.pozitserver.recommendation.model.TourApiRegionCodes;
 import com.pozit.pozitserver.travel.domain.Transportation;
 import com.pozit.pozitserver.travel.domain.TravelStyle;
@@ -52,6 +53,46 @@ class TourApiCandidateProviderTest {
                 .containsExactly("100");
     }
 
+    @Test
+    void findCandidatesFallsBackWhenCollectedCandidatesAreRemovedByFinalFilter() {
+        TourApiRegionCodes regionCodes = new TourApiRegionCodes("", "", "", "");
+        CourseRecommendCommand command = new CourseRecommendCommand(
+                1L,
+                "서울",
+                "11",
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 2),
+                TravelStyle.NORMAL,
+                Transportation.PUBLIC,
+                List.of(RecommendationTag.EXPERIENCE)
+        );
+        when(regionCodeResolver.resolve("11")).thenReturn(regionCodes);
+        when(regionCodeResolver.matches(any(CandidatePlace.class), eq(regionCodes))).thenReturn(true);
+        when(tourApiClient.searchPlaces(eq("서울"), anyInt(), anyInt()))
+                .thenReturn(successResponse());
+        when(tourApiClient.searchPlaces(eq("서울 체험"), anyInt(), anyInt()))
+                .thenReturn(successResponse());
+        when(tourApiClient.findAreaBasedPlaces(anyString(), anyString(), anyString(), anyString(), eq("15"), anyInt(), anyInt()))
+                .thenReturn(successResponse(eventItem("200", "15", "Finished Festival", "20250831")));
+        when(tourApiClient.findAreaBasedPlaces(anyString(), anyString(), anyString(), anyString(), eq("28"), anyInt(), anyInt()))
+                .thenReturn(successResponse());
+        when(tourApiClient.findAreaBasedPlaces(anyString(), anyString(), anyString(), anyString(), eq("12"), anyInt(), anyInt()))
+                .thenReturn(
+                        successResponse(),
+                        successResponse(item("300", "12", "Fallback Tourist Spot"))
+                );
+        when(tourApiClient.findAreaBasedPlaces(anyString(), anyString(), anyString(), anyString(), eq("14"), anyInt(), anyInt()))
+                .thenReturn(successResponse());
+        when(tourApiClient.findAreaBasedPlaces(anyString(), anyString(), anyString(), anyString(), eq("39"), anyInt(), anyInt()))
+                .thenReturn(successResponse());
+
+        List<CandidatePlace> candidates = candidateProvider.findCandidates(command);
+
+        assertThat(candidates)
+                .extracting(CandidatePlace::contentId)
+                .containsExactly("300");
+    }
+
     private CourseRecommendCommand command() {
         return new CourseRecommendCommand(
                 1L,
@@ -78,6 +119,24 @@ class TourApiCandidateProviderTest {
     }
 
     private TourApiResponse.Response.Item item(String contentId, String contentTypeId, String title) {
+        return item(contentId, contentTypeId, title, "");
+    }
+
+    private TourApiResponse.Response.Item eventItem(
+            String contentId,
+            String contentTypeId,
+            String title,
+            String eventEndDate
+    ) {
+        return item(contentId, contentTypeId, title, eventEndDate);
+    }
+
+    private TourApiResponse.Response.Item item(
+            String contentId,
+            String contentTypeId,
+            String title,
+            String eventEndDate
+    ) {
         return new TourApiResponse.Response.Item(
                 contentId,
                 contentTypeId,
@@ -103,7 +162,7 @@ class TourApiCandidateProviderTest {
                 "",
                 "",
                 "",
-                "",
+                eventEndDate,
                 "",
                 "",
                 "",

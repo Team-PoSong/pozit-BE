@@ -44,6 +44,7 @@ public enum ErrorCode {
     INVALID_REGION(HttpStatus.BAD_REQUEST,"TRAVEL404_1","존재하지 않는 여행지입니다."),
     COURSE_SPOT_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_2", "코스 내 해당 여행지를 찾을 수 없습니다."),
     NOT_VALID_TRAVEL_MEMBER(HttpStatus.FORBIDDEN,"COURSE403_1","해당 유저는 이 여행 코스에 접근 권한이 없습니다."),
+    RECOMMENDABLE_PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_3", "추천 가능한 장소를 찾을 수 없습니다. 다시 추천해주세요."),
 
     // Pozing
     POZING_VIDEO_NOT_FOUND(HttpStatus.BAD_REQUEST, "POZING400_1", "편집할 포징 영상이 없습니다."),
