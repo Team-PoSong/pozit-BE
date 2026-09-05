@@ -28,6 +28,8 @@ import com.pozit.pozitserver.travel.repository.TravelRepository;
 import com.pozit.pozitserver.travel.service.TravelService;
 import com.pozit.pozitserver.user.domain.User;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +48,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @Transactional(readOnly = true)
 public class CourseRecommendationService {
 
@@ -135,6 +138,19 @@ public class CourseRecommendationService {
     private RecommendedCourseResponse createPreview(Travel travel) {
         CourseRecommendCommand command = toCommand(travel);
         List<CandidatePlace> candidates = candidateProvider.findCandidates(command);
+        if (candidates.isEmpty()) {
+            candidates = findStoredCandidateFallback(travel);
+        }
+        if (candidates.isEmpty()) {
+            log.warn("No recommendable candidates found from Tour API or stored spots. travelId={}, destination={}, regionCode={}, tags={}",
+                    travel.getId(),
+                    travel.getDestination(),
+                    travel.getRegionCode(),
+                    command.tags()
+            );
+            throw new BusinessException(ErrorCode.RECOMMENDABLE_PLACE_NOT_FOUND);
+        }
+
         double[] userVector = userPreferenceVectorFactory.create(command.tags());
 
         List<ScoredPlace> scoredPlaces = candidates.stream()
@@ -144,7 +160,105 @@ public class CourseRecommendationService {
         List<ScoredPlace> rankedPlaces = contextualRankingService.rank(scoredPlaces, command);
         List<ScoredPlace> diversifiedPlaces = diversityRerankingService.rerank(rankedPlaces);
 
-        return routeOptimizationService.createCourse(diversifiedPlaces, command);
+        RecommendedCourseResponse recommendedCourse = routeOptimizationService.createCourse(diversifiedPlaces, command);
+        if (hasNoSaveablePlaces(recommendedCourse)) {
+            log.info("Recommendation result has no saveable places. travelId={}, destination={}, regionCode={}, candidates={}",
+                    travel.getId(),
+                    travel.getDestination(),
+                    travel.getRegionCode(),
+                    candidates.size()
+            );
+            throw new BusinessException(ErrorCode.RECOMMENDABLE_PLACE_NOT_FOUND);
+        }
+
+        return recommendedCourse;
+    }
+
+    private List<CandidatePlace> findStoredCandidateFallback(Travel travel) {
+        String legalDongRegionCode = legalDongRegionCode(travel.getRegionCode());
+        String legalDongSigunguCode = legalDongSigunguCode(travel.getRegionCode());
+
+        List<TouristSpot> touristSpots = touristSpotRepository.findRecommendableByRegion(
+                travel.getRegionCode(),
+                legalDongRegionCode,
+                legalDongSigunguCode,
+                PageRequest.of(0, 40)
+        );
+        if (touristSpots.isEmpty()) {
+            touristSpots = touristSpotRepository.findRecommendable(PageRequest.of(0, 40));
+        }
+
+        if (!touristSpots.isEmpty()) {
+            log.info("Using stored tourist spot fallback for recommendation. travelId={}, regionCode={}, candidateCount={}",
+                    travel.getId(),
+                    travel.getRegionCode(),
+                    touristSpots.size()
+            );
+        }
+
+        return touristSpots.stream()
+                .map(this::toCandidatePlace)
+                .toList();
+    }
+
+    private CandidatePlace toCandidatePlace(TouristSpot touristSpot) {
+        return new CandidatePlace(
+                touristSpot.getContentId(),
+                touristSpot.getContentTypeId(),
+                touristSpot.getName(),
+                touristSpot.getAddress(),
+                touristSpot.getImageUrl(),
+                touristSpot.getLongitude().toPlainString(),
+                touristSpot.getLatitude().toPlainString(),
+                null,
+                null,
+                null,
+                touristSpot.getLegalDongRegionCode(),
+                touristSpot.getLegalDongSigunguCode(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    private String legalDongRegionCode(String regionCode) {
+        if (regionCode == null || regionCode.isBlank()) {
+            return "";
+        }
+        String normalizedCode = regionCode.trim();
+        return normalizedCode.length() >= 2 ? normalizedCode.substring(0, 2) : "";
+    }
+
+    private String legalDongSigunguCode(String regionCode) {
+        if (regionCode == null || regionCode.isBlank()) {
+            return "";
+        }
+        String normalizedCode = regionCode.trim();
+        return normalizedCode.length() >= 5 && !normalizedCode.endsWith("000") ? normalizedCode : "";
+    }
+
+    private boolean hasNoSaveablePlaces(RecommendedCourseResponse recommendedCourse) {
+        return recommendedCourse.days().stream()
+                .flatMap(day -> day.places().stream())
+                .noneMatch(place -> place.contentId() != null
+                        && !place.contentId().isBlank()
+                        && place.title() != null
+                        && !place.title().isBlank());
     }
 
     private String createCardTitle(Travel travel) {
