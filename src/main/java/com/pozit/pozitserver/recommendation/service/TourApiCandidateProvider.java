@@ -32,15 +32,43 @@ public class TourApiCandidateProvider {
 
     public List<CandidatePlace> findCandidates(CourseRecommendCommand command) {
         TourApiRegionCodes regionCodes = regionCodeResolver.resolve(command.regionCode());
+        List<CandidatePlace> candidates = createCandidates(command, collectPrimaryBuckets(command, regionCodes));
+        if (candidates.isEmpty()) {
+            candidates = createCandidates(command, collectRegionWideFallbackBuckets(command, regionCodes));
+        }
+        if (candidates.isEmpty()) {
+            candidates = createCandidates(command, collectUnrestrictedKeywordFallbackBuckets(command));
+        }
+        if (candidates.isEmpty()) {
+            candidates = createCandidates(command, collectNationwideFallbackBuckets());
+        }
+
+        log.info("Tour API recommendation candidates resolved. travelId={}, destination={}, regionCode={}, candidateCount={}",
+                command.travelId(),
+                command.destination(),
+                command.regionCode(),
+                candidates.size()
+        );
+        return candidates;
+    }
+
+    private List<Map<String, CandidatePlace>> collectPrimaryBuckets(
+            CourseRecommendCommand command,
+            TourApiRegionCodes regionCodes
+    ) {
         List<Map<String, CandidatePlace>> candidateBuckets = new ArrayList<>();
 
-        Map<String, CandidatePlace> destinationCandidates = collectKeywordCandidates(command.destination(), regionCodes);
+        Map<String, CandidatePlace> destinationCandidates = collectKeywordCandidates(
+                "primary-destination:" + command.destination(),
+                command.destination(),
+                regionCodes
+        );
         if (!destinationCandidates.isEmpty()) {
             candidateBuckets.add(destinationCandidates);
         }
 
         for (RecommendationTag tag : command.tags()) {
-            Map<String, CandidatePlace> tagCandidates = collectTagCandidates(tag, command, regionCodes);
+            Map<String, CandidatePlace> tagCandidates = collectTagCandidates("primary", tag, command, regionCodes);
             if (!tagCandidates.isEmpty()) {
                 candidateBuckets.add(tagCandidates);
             }
@@ -48,6 +76,7 @@ public class TourApiCandidateProvider {
 
         if (candidateBuckets.isEmpty()) {
             Map<String, CandidatePlace> fallbackCandidates = collectContentTypeCandidates(
+                    "primary-fallback",
                     List.of("12", "14", "39"),
                     regionCodes
             );
@@ -56,10 +85,104 @@ public class TourApiCandidateProvider {
             }
         }
 
-        return selectBalancedCandidates(candidateBuckets, MAX_ENRICH_TARGETS).stream()
-                .map(this::enrich)
-                .filter(place -> !isFinishedEvent(place, command))
-                .toList();
+        return candidateBuckets;
+    }
+
+    private List<Map<String, CandidatePlace>> collectRegionWideFallbackBuckets(
+            CourseRecommendCommand command,
+            TourApiRegionCodes regionCodes
+    ) {
+        TourApiRegionCodes regionWideCodes = new TourApiRegionCodes(
+                regionCodes.legalDongRegionCode(),
+                "",
+                regionCodes.areaCode(),
+                ""
+        );
+        if (isSameScope(regionCodes, regionWideCodes)) {
+            return List.of();
+        }
+
+        List<Map<String, CandidatePlace>> fallbackBuckets = new ArrayList<>();
+        Map<String, CandidatePlace> contentTypeCandidates = collectContentTypeCandidates(
+                "region-wide-fallback",
+                List.of("12", "14", "39", "28"),
+                regionWideCodes
+        );
+        if (!contentTypeCandidates.isEmpty()) {
+            fallbackBuckets.add(contentTypeCandidates);
+        }
+
+        for (RecommendationTag tag : command.tags()) {
+            Map<String, CandidatePlace> tagCandidates = collectTagCandidates(
+                    "region-wide-fallback",
+                    tag,
+                    command,
+                    regionWideCodes
+            );
+            if (!tagCandidates.isEmpty()) {
+                fallbackBuckets.add(tagCandidates);
+            }
+        }
+
+        return fallbackBuckets;
+    }
+
+    private List<Map<String, CandidatePlace>> collectUnrestrictedKeywordFallbackBuckets(
+            CourseRecommendCommand command
+    ) {
+        TourApiRegionCodes unrestrictedCodes = unrestrictedRegionCodes();
+        List<Map<String, CandidatePlace>> fallbackBuckets = new ArrayList<>();
+
+        Map<String, CandidatePlace> destinationCandidates = collectKeywordCandidates(
+                "unrestricted-keyword-fallback:destination",
+                command.destination(),
+                unrestrictedCodes
+        );
+        if (!destinationCandidates.isEmpty()) {
+            fallbackBuckets.add(destinationCandidates);
+        }
+
+        Map<String, CandidatePlace> touristKeywordCandidates = collectKeywordCandidates(
+                "unrestricted-keyword-fallback:tourist",
+                command.destination() + " 관광지",
+                unrestrictedCodes
+        );
+        if (!touristKeywordCandidates.isEmpty()) {
+            fallbackBuckets.add(touristKeywordCandidates);
+        }
+
+        Map<String, CandidatePlace> foodKeywordCandidates = collectKeywordCandidates(
+                "unrestricted-keyword-fallback:food",
+                command.destination() + " 맛집",
+                unrestrictedCodes
+        );
+        if (!foodKeywordCandidates.isEmpty()) {
+            fallbackBuckets.add(foodKeywordCandidates);
+        }
+
+        return fallbackBuckets;
+    }
+
+    private List<Map<String, CandidatePlace>> collectNationwideFallbackBuckets() {
+        Map<String, CandidatePlace> fallbackCandidates = collectContentTypeCandidates(
+                "nationwide-fallback",
+                List.of("12", "14", "39", "28"),
+                unrestrictedRegionCodes()
+        );
+        if (fallbackCandidates.isEmpty()) {
+            return List.of();
+        }
+        return List.of(fallbackCandidates);
+    }
+
+    private List<CandidatePlace> createCandidates(
+            CourseRecommendCommand command,
+            List<Map<String, CandidatePlace>> candidateBuckets
+    ) {
+        return enrichAndFilterFinishedEvents(
+                selectBalancedCandidates(candidateBuckets, MAX_ENRICH_TARGETS),
+                command
+        );
     }
 
     public List<CandidatePlace> findKeywordCandidates(
@@ -75,7 +198,7 @@ public class TourApiCandidateProvider {
                 break;
             }
 
-            collectKeywordCandidates(keyword, regionCodes).values().stream()
+            collectKeywordCandidates("chat-keyword:" + keyword, keyword, regionCodes).values().stream()
                     .limit(Math.max(0, maxCount - candidatesByContentId.size()))
                     .forEach(place -> candidatesByContentId.putIfAbsent(place.contentId(), place));
         }
@@ -88,17 +211,38 @@ public class TourApiCandidateProvider {
     }
 
     private Map<String, CandidatePlace> collectTagCandidates(
+            String sourcePrefix,
             RecommendationTag tag,
             CourseRecommendCommand command,
             TourApiRegionCodes regionCodes
     ) {
         Map<String, CandidatePlace> candidatesByContentId = new LinkedHashMap<>();
-        candidatesByContentId.putAll(collectContentTypeCandidates(buildContentTypeIds(tag), regionCodes));
-        candidatesByContentId.putAll(collectKeywordCandidates(buildKeyword(command.destination(), tag), regionCodes));
+        candidatesByContentId.putAll(collectContentTypeCandidates(
+                sourcePrefix + ":tag-content-type:" + tag.name(),
+                buildContentTypeIds(tag),
+                regionCodes
+        ));
+        candidatesByContentId.putAll(collectKeywordCandidates(
+                sourcePrefix + ":tag-keyword:" + tag.name(),
+                buildKeyword(command.destination(), tag),
+                regionCodes
+        ));
         return candidatesByContentId;
     }
 
+    private TourApiRegionCodes unrestrictedRegionCodes() {
+        return new TourApiRegionCodes("", "", "", "");
+    }
+
+    private boolean isSameScope(TourApiRegionCodes first, TourApiRegionCodes second) {
+        return first.legalDongRegionCode().equals(second.legalDongRegionCode())
+                && first.legalDongSigunguCode().equals(second.legalDongSigunguCode())
+                && first.areaCode().equals(second.areaCode())
+                && first.sigunguCode().equals(second.sigunguCode());
+    }
+
     private Map<String, CandidatePlace> collectContentTypeCandidates(
+            String source,
             List<String> contentTypeIds,
             TourApiRegionCodes regionCodes
     ) {
@@ -117,11 +261,12 @@ public class TourApiCandidateProvider {
                 );
                 validateResponse(response);
 
-                extractItems(response).stream()
-                        .map(CandidatePlace::from)
-                        .filter(this::isUsable)
-                        .filter(place -> regionCodeResolver.matches(place, regionCodes))
-                        .forEach(place -> candidatesByContentId.putIfAbsent(place.contentId(), place));
+                collectUsableCandidates(
+                        source + ":contentTypeId=" + contentTypeId,
+                        extractItems(response),
+                        regionCodes,
+                        candidatesByContentId
+                );
             } catch (RuntimeException exception) {
                 log.warn("Tour API content type candidate collection failed. contentTypeId={}", contentTypeId, exception);
             }
@@ -131,6 +276,7 @@ public class TourApiCandidateProvider {
     }
 
     private Map<String, CandidatePlace> collectKeywordCandidates(
+            String source,
             String keyword,
             TourApiRegionCodes regionCodes
     ) {
@@ -144,11 +290,12 @@ public class TourApiCandidateProvider {
             TourApiResponse response = tourApiClient.searchPlaces(keyword, PAGE, SIZE_PER_QUERY);
             validateResponse(response);
 
-            extractItems(response).stream()
-                    .map(CandidatePlace::from)
-                    .filter(this::isUsable)
-                    .filter(place -> regionCodeResolver.matches(place, regionCodes))
-                    .forEach(place -> candidatesByContentId.putIfAbsent(place.contentId(), place));
+            collectUsableCandidates(
+                    source + ":keyword=" + keyword,
+                    extractItems(response),
+                    regionCodes,
+                    candidatesByContentId
+            );
         } catch (RuntimeException exception) {
             log.warn("Tour API keyword candidate collection failed. keyword={}", keyword, exception);
         }
@@ -190,6 +337,118 @@ public class TourApiCandidateProvider {
         } while (hasCandidateAtIndex);
 
         return new ArrayList<>(selectedCandidates.values());
+    }
+
+    private void collectUsableCandidates(
+            String source,
+            List<TourApiResponse.Response.Item> items,
+            TourApiRegionCodes regionCodes,
+            Map<String, CandidatePlace> candidatesByContentId
+    ) {
+        int missingContentId = 0;
+        int missingTitle = 0;
+        int missingCoordinate = 0;
+        int regionMismatch = 0;
+        int duplicate = 0;
+        int selected = 0;
+
+        for (TourApiResponse.Response.Item item : items) {
+            CandidatePlace place = CandidatePlace.from(item);
+            if (place.contentId() == null) {
+                missingContentId++;
+                continue;
+            }
+            if (place.title() == null) {
+                missingTitle++;
+                continue;
+            }
+            if (!place.hasCoordinate()) {
+                missingCoordinate++;
+                continue;
+            }
+            if (!regionCodeResolver.matches(place, regionCodes)) {
+                regionMismatch++;
+                continue;
+            }
+            if (candidatesByContentId.containsKey(place.contentId())) {
+                duplicate++;
+                continue;
+            }
+
+            candidatesByContentId.put(place.contentId(), place);
+            selected++;
+        }
+
+        logCandidateCollection(
+                source,
+                items.size(),
+                selected,
+                missingContentId,
+                missingTitle,
+                missingCoordinate,
+                regionMismatch,
+                duplicate
+        );
+    }
+
+    private void logCandidateCollection(
+            String source,
+            int raw,
+            int selected,
+            int missingContentId,
+            int missingTitle,
+            int missingCoordinate,
+            int regionMismatch,
+            int duplicate
+    ) {
+        if (raw == 0 || selected == 0) {
+            log.info("Tour API recommendation candidate collection. source={}, raw={}, selected={}, removedMissingContentId={}, removedMissingTitle={}, removedMissingCoordinate={}, removedRegionMismatch={}, removedDuplicate={}",
+                    source,
+                    raw,
+                    selected,
+                    missingContentId,
+                    missingTitle,
+                    missingCoordinate,
+                    regionMismatch,
+                    duplicate
+            );
+            return;
+        }
+
+        log.debug("Tour API recommendation candidate collection. source={}, raw={}, selected={}, removedMissingContentId={}, removedMissingTitle={}, removedMissingCoordinate={}, removedRegionMismatch={}, removedDuplicate={}",
+                source,
+                raw,
+                selected,
+                missingContentId,
+                missingTitle,
+                missingCoordinate,
+                regionMismatch,
+                duplicate
+        );
+    }
+
+    private List<CandidatePlace> enrichAndFilterFinishedEvents(
+            List<CandidatePlace> candidates,
+            CourseRecommendCommand command
+    ) {
+        List<CandidatePlace> enrichedCandidates = candidates.stream()
+                .map(this::enrich)
+                .toList();
+        List<CandidatePlace> activeCandidates = enrichedCandidates.stream()
+                .filter(place -> !isFinishedEvent(place, command))
+                .toList();
+        int removedFinishedEvents = enrichedCandidates.size() - activeCandidates.size();
+
+        if (removedFinishedEvents > 0 || activeCandidates.isEmpty()) {
+            log.info("Tour API recommendation final filtering. travelId={}, before={}, after={}, removedFinishedEvents={}",
+                    command.travelId(),
+                    enrichedCandidates.size(),
+                    activeCandidates.size(),
+                    removedFinishedEvents
+            );
+        }
+
+        return activeCandidates;
     }
 
     private List<String> buildContentTypeIds(RecommendationTag tag) {

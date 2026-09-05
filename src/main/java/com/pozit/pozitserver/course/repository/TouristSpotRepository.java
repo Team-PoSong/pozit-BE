@@ -18,6 +18,44 @@ public interface TouristSpotRepository extends JpaRepository<TouristSpot, Long> 
     List<TouristSpot> findByContentIdIn(Collection<String> contentIds);
 
     @Query("""
+            select ts
+            from TouristSpot ts
+            left join ts.region r
+            where ts.contentId is not null
+                and ts.contentId <> ''
+                and ts.name is not null
+                and ts.name <> ''
+                and ts.latitude is not null
+                and ts.longitude is not null
+                and (:regionCode is null
+                    or :regionCode = ''
+                    or r.code = :regionCode
+                    or r.code like concat(:regionCode, '%')
+                    or ts.legalDongRegionCode = :legalDongRegionCode
+                    or ts.legalDongSigunguCode = :legalDongSigunguCode)
+            order by ts.id asc
+            """)
+    List<TouristSpot> findRecommendableByRegion(
+            @Param("regionCode") String regionCode,
+            @Param("legalDongRegionCode") String legalDongRegionCode,
+            @Param("legalDongSigunguCode") String legalDongSigunguCode,
+            Pageable pageable
+    );
+
+    @Query("""
+            select ts
+            from TouristSpot ts
+            where ts.contentId is not null
+                and ts.contentId <> ''
+                and ts.name is not null
+                and ts.name <> ''
+                and ts.latitude is not null
+                and ts.longitude is not null
+            order by ts.id asc
+            """)
+    List<TouristSpot> findRecommendable(Pageable pageable);
+
+    @Query("""
             select
                 ts.id as touristSpotId,
                 ts.name as title,
