@@ -146,6 +146,20 @@ public class Travel {
         this.status = status;
     }
 
+    public TravelStatus calculateStatus(LocalDate today) {
+        if (this.status == TravelStatus.DONE || today.isAfter(this.endDate)) {
+            return TravelStatus.DONE;
+        }
+        if (!today.isBefore(this.startDate) && !today.isAfter(this.endDate)) {
+            return TravelStatus.IN_PROGRESS;
+        }
+        return TravelStatus.BEFORE;
+    }
+
+    public void syncStatus(LocalDate today) {
+        this.status = calculateStatus(today);
+    }
+
     public boolean isPubliclyVisible() {
         return this.status == TravelStatus.DONE && Boolean.TRUE.equals(this.isPublic);
     }
