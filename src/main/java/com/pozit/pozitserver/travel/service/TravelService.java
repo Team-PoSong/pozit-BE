@@ -630,6 +630,7 @@ public class TravelService {
                             spot.getId(),
                             spot.getTouristSpot().getId(),
                             spot.getTouristSpot().getName(),
+                            spot.getTouristSpot().getAddress(),
                             spot.getTouristSpot().getLatitude(),
                             spot.getTouristSpot().getLongitude(),
                             spot.getOrderIndex(),
@@ -1030,7 +1031,7 @@ public class TravelService {
         likeRepository.deleteByTravel(travel);
         notificationService.deleteByTravel(travel);
         travelMemberRepository.deleteAllInBatch(travelMemberRepository.findByTravel(travel));
-        travelRepository.delete(travel);
+        travelRepository.deleteAllInBatch(List.of(travel));
 
         deleteTravelObjectsAfterCommit(objectKeysToDelete, backgroundImageKey);
     }
