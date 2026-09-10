@@ -1021,15 +1021,15 @@ public class TravelService {
         editJobs.stream().map(PozingEditJob::getResultS3Key).filter(Objects::nonNull).forEach(objectKeysToDelete::add);
         String backgroundImageKey = travel.getBackgroundImageUrl();
 
-        timelapseManifestRepository.deleteAllInBatch(timelapseManifestRepository.findByTravel(travel));
-        pozingEditJobRepository.deleteAllInBatch(editJobs);
-        pozingRepository.deleteAllInBatch(pozings);
-        courseSpotRepository.deleteAllInBatch(spots);
-        courseRepository.deleteAllInBatch(courses);
-        travelTagRepository.deleteAllInBatch(travelTagRepository.findByTravel(travel));
+        timelapseManifestRepository.deleteAll(timelapseManifestRepository.findByTravel(travel));
+        pozingEditJobRepository.deleteAll(editJobs);
+        pozingRepository.deleteAll(pozings);
+        courseSpotRepository.deleteAll(spots);
+        courseRepository.deleteAll(courses);
+        travelTagRepository.deleteAll(travelTagRepository.findByTravel(travel));
         likeRepository.deleteByTravel(travel);
         notificationService.deleteByTravel(travel);
-        travelMemberRepository.deleteAllInBatch(travelMemberRepository.findByTravel(travel));
+        travelMemberRepository.deleteAll(travelMemberRepository.findByTravel(travel));
         travelRepository.delete(travel);
 
         deleteTravelObjectsAfterCommit(objectKeysToDelete, backgroundImageKey);
