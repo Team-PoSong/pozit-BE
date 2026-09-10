@@ -26,7 +26,21 @@ public class TravelAutoCompleteScheduler {
         LocalDate today = LocalDate.now(SCHEDULE_ZONE);
         List<Travel> travels = travelRepository.findByStatusNotAndEndDateBefore(TravelStatus.DONE, today);
         for (Travel travel : travels) {
-            travel.changeStatus(TravelStatus.DONE);
+            travel.syncStatus(today);
+        }
+    }
+
+    @Transactional
+    @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Seoul")
+    public void activateStartedTravels() {
+        LocalDate today = LocalDate.now(SCHEDULE_ZONE);
+        List<Travel> travels = travelRepository.findByStatusNotAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+                TravelStatus.DONE,
+                today,
+                today
+        );
+        for (Travel travel : travels) {
+            travel.syncStatus(today);
         }
     }
 }

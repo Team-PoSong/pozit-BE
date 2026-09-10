@@ -44,6 +44,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.LocalDate;
 import java.time.Duration;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -71,6 +72,7 @@ public class TravelService {
     private static final Duration POZING_GET_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final Duration THUMBNAIL_GET_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final String BACKGROUND_IMAGE_CONTENT_TYPE = "image/jpeg";
+    private static final ZoneId STATUS_ZONE = ZoneId.of("Asia/Seoul");
 
     private final TravelRepository travelRepository;
     private final TravelMemberRepository travelMemberRepository;
@@ -186,17 +188,18 @@ public class TravelService {
         List<String> tags=travelTagRepository.findTagNamesByTravelId(travel.getId());
         String imageUrl = createBackgroundImageUrl(travel);
         String leaderNickname = currentLeaderNickname(travel);
+        TravelStatus travelStatus = calculateStatus(travel);
 
         boolean alreadyJoined=travelMemberRepository.existsByTravelAndUser(travel,user);
         if(alreadyJoined){
-            return TravelJoinResponse.joined(travel, leaderNickname, memberCount, tags, imageUrl);
+            return TravelJoinResponse.joined(travel, travelStatus, leaderNickname, memberCount, tags, imageUrl);
         }
 
-        if (travel.getStatus() == TravelStatus.DONE) {
-            return TravelJoinResponse.doneTravel(travel, leaderNickname, memberCount, tags, imageUrl);
+        if (travelStatus == TravelStatus.DONE) {
+            return TravelJoinResponse.doneTravel(travel, travelStatus, leaderNickname, memberCount, tags, imageUrl);
         }
 
-        return TravelJoinResponse.from(travel, leaderNickname, memberCount, tags, imageUrl);
+        return TravelJoinResponse.from(travel, travelStatus, leaderNickname, memberCount, tags, imageUrl);
     }
 
     /**
@@ -207,7 +210,7 @@ public class TravelService {
         Travel travel=travelRepository.findByIdForUpdate(travelId)
                 .orElseThrow(()->new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
 
-        if (travel.getStatus() == TravelStatus.DONE) {
+        if (calculateStatus(travel) == TravelStatus.DONE) {
             throw new BusinessException(ErrorCode.CANNOT_JOIN_FINISHED_TRAVEL);
         }
 
@@ -245,12 +248,13 @@ public class TravelService {
      */
     public List<TravelListResponse> getTravels(User currentUser, boolean isDone) {
         List<TravelMember> myMemberships = travelMemberRepository.findAllWithTravelByUser(currentUser);
+        LocalDate today = LocalDate.now(STATUS_ZONE);
 
         List<Travel> travels = myMemberships.stream()
                 .map(TravelMember::getTravel)
                 .filter(travel -> isDone
-                        ? travel.getStatus() == TravelStatus.DONE
-                        : travel.getStatus() != TravelStatus.DONE)
+                        ? travel.calculateStatus(today) == TravelStatus.DONE
+                        : travel.calculateStatus(today) != TravelStatus.DONE)
                 .sorted(Comparator.comparing(Travel::getStartDate))
                 .toList();
 
@@ -261,9 +265,10 @@ public class TravelService {
      * 진행중인 여행들의 코스 스팟 목록을 조회한다.
      */
     public ActiveSpotsResponse getActiveSpots(User currentUser) {
+        LocalDate today = LocalDate.now(STATUS_ZONE);
         List<Travel> activeTravels = travelMemberRepository.findAllWithTravelByUser(currentUser).stream()
                 .map(TravelMember::getTravel)
-                .filter(travel -> travel.getStatus() == TravelStatus.IN_PROGRESS)
+                .filter(travel -> travel.calculateStatus(today) == TravelStatus.IN_PROGRESS)
                 .toList();
 
         if (activeTravels.isEmpty()) {
@@ -417,6 +422,10 @@ public class TravelService {
         return s3Service.createGetPresignedUrl(objectKey, BACKGROUND_IMAGE_GET_URL_EXPIRATION);
     }
 
+    private TravelStatus calculateStatus(Travel travel) {
+        return travel.calculateStatus(LocalDate.now(STATUS_ZONE));
+    }
+
     private TravelListResponse toTravelListResponse(
             Travel travel,
             List<TravelMember> members,
@@ -434,7 +443,7 @@ public class TravelService {
                 travel.getDestination(),
                 travel.getStartDate(),
                 travel.getEndDate(),
-                travel.getStatus().name(),
+                calculateStatus(travel).name(),
                 travel.getIsPublic(),
                 createBackgroundImageUrl(travel),
                 completionRate,
@@ -463,7 +472,7 @@ public class TravelService {
                 travel.getDestination(),
                 travel.getStartDate(),
                 travel.getEndDate(),
-                travel.getStatus().name(),
+                calculateStatus(travel).name(),
                 travel.getIsPublic(),
                 createBackgroundImageUrl(travel),
                 completionRate,
@@ -554,7 +563,7 @@ public class TravelService {
     }
 
     private void validatePublicDone(Travel travel) {
-        if (!travel.isPubliclyVisible()) {
+        if (calculateStatus(travel) != TravelStatus.DONE || !Boolean.TRUE.equals(travel.getIsPublic())) {
             throw new BusinessException(ErrorCode.TRAVEL_NOT_FOUND);
         }
     }
@@ -582,7 +591,7 @@ public class TravelService {
                 travel.getDestination(),
                 travel.getStartDate(),
                 travel.getEndDate(),
-                travel.getStatus().name(),
+                calculateStatus(travel).name(),
                 travel.getIsPublic(),
                 createBackgroundImageUrl(travel),
                 aggregate.leaderNickname(),
@@ -659,7 +668,7 @@ public class TravelService {
                 travel.getDestination(),
                 travel.getStartDate(),
                 travel.getEndDate(),
-                travel.getStatus().name(),
+                calculateStatus(travel).name(),
                 travel.getIsPublic(),
                 createBackgroundImageUrl(travel),
                 travel.getInviteCode(),
@@ -837,7 +846,7 @@ public class TravelService {
 
         validateLeader(travel, currentUser);
 
-        if (travel.getStatus() != TravelStatus.DONE) {
+        if (calculateStatus(travel) != TravelStatus.DONE) {
             throw new BusinessException(ErrorCode.TRAVEL_NOT_COMPLETED);
         }
 
@@ -891,7 +900,7 @@ public class TravelService {
     }
 
     private void validateDateChangeAllowed(Travel travel, LocalDate startDate, LocalDate endDate) {
-        if (travel.getStatus() != TravelStatus.DONE) {
+        if (calculateStatus(travel) != TravelStatus.DONE) {
             return;
         }
 
@@ -985,7 +994,7 @@ public class TravelService {
 
         validateLeader(travel, currentUser);
 
-        if (travel.getStatus() == TravelStatus.DONE) {
+        if (calculateStatus(travel) == TravelStatus.DONE) {
             throw new BusinessException(ErrorCode.CANNOT_DELETE_COMPLETED_TRAVEL);
         }
 
@@ -1073,7 +1082,7 @@ public class TravelService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMON403));
 
         if (member.getRole() == TravelMemberRole.LEADER) {
-            if (travel.getStatus() != TravelStatus.DONE) {
+            if (calculateStatus(travel) != TravelStatus.DONE) {
                 throw new BusinessException(ErrorCode.CANNOT_LEAVE_AS_LEADER);
             }
             transferLeadershipToNextMember(travel, member);
