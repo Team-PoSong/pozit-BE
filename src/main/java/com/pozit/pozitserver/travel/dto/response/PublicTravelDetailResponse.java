@@ -40,6 +40,7 @@ public record PublicTravelDetailResponse(
             Long courseSpotId,
             Long touristSpotId,
             String name,
+            String address,
             BigDecimal latitude,
             BigDecimal longitude,
             Integer orderIndex,
