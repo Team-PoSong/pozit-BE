@@ -30,4 +30,10 @@ public interface TravelRepository extends JpaRepository<Travel, Long>, TravelRep
     List<Travel> findByStartDate(LocalDate startDate);
 
     List<Travel> findByStatusNotAndEndDateBefore(TravelStatus status, LocalDate endDate);
+
+    List<Travel> findByStatusNotAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+            TravelStatus status,
+            LocalDate startDate,
+            LocalDate endDate
+    );
 }

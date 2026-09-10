@@ -23,6 +23,7 @@ public record TravelJoinResponse(
 ){
     public static TravelJoinResponse from(
             Travel travel,
+            TravelStatus travelStatus,
             String leaderNickname,
             Long memberCount,
             List<String> tags,
@@ -32,6 +33,7 @@ public record TravelJoinResponse(
                 "성공적으로 조회했어요.",
                 InviteStatus.JOINABLE,
                 travel,
+                travelStatus,
                 leaderNickname,
                 memberCount,
                 tags,
@@ -41,6 +43,7 @@ public record TravelJoinResponse(
 
     public static TravelJoinResponse joined(
             Travel travel,
+            TravelStatus travelStatus,
             String leaderNickname,
             Long memberCount,
             List<String> tags,
@@ -50,6 +53,7 @@ public record TravelJoinResponse(
                 "이미 참여한 여행입니다.",
                 InviteStatus.ALREADY_JOINED,
                 travel,
+                travelStatus,
                 leaderNickname,
                 memberCount,
                 tags,
@@ -59,6 +63,7 @@ public record TravelJoinResponse(
 
     public static TravelJoinResponse doneTravel(
             Travel travel,
+            TravelStatus travelStatus,
             String leaderNickname,
             Long memberCount,
             List<String> tags,
@@ -68,6 +73,7 @@ public record TravelJoinResponse(
                 "참여할 수 없는 여행입니다.",
                 InviteStatus.UNAVAILABLE,
                 travel,
+                travelStatus,
                 leaderNickname,
                 memberCount,
                 tags,
@@ -79,6 +85,7 @@ public record TravelJoinResponse(
             String message,
             InviteStatus inviteStatus,
             Travel travel,
+            TravelStatus travelStatus,
             String leaderNickname,
             Long memberCount,
             List<String> tags,
@@ -87,7 +94,7 @@ public record TravelJoinResponse(
         return new TravelJoinResponse(
                 message,
                 inviteStatus,
-                travel.getStatus(),
+                travelStatus,
                 travel.getId(),
                 travel.getTitle(),
                 travel.getDestination(),
