@@ -4,6 +4,7 @@ import com.pozit.pozitserver.notification.domain.NotificationType;
 import com.pozit.pozitserver.notification.service.NotificationService;
 import com.pozit.pozitserver.travel.domain.Travel;
 import com.pozit.pozitserver.travel.domain.TravelMember;
+import com.pozit.pozitserver.travel.domain.TravelStatus;
 import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +30,7 @@ public class TravelStartNotificationScheduler {
     @Scheduled(cron = "0 0 9 * * *", zone = "Asia/Seoul")
     public void notifyTravelsStartingTomorrow() {
         LocalDate tomorrow = LocalDate.now(NOTIFICATION_ZONE).plusDays(1);
-        List<Travel> travels = travelRepository.findByStartDate(tomorrow);
+        List<Travel> travels = travelRepository.findByStartDateAndStatusNot(tomorrow, TravelStatus.DRAFT);
         if (travels.isEmpty()) {
             return;
         }

@@ -30,69 +30,36 @@
 - 지역별 방문자수 API 기반 지역 추세 점수
 - 두루누비 걷기 코스 연동
 - 실제 길찾기 API 기반 이동시간 계산
-- 추천 결과 확정 저장 API
 
 현재 `CongestionScore`와 `RegionTrendScore`는 중립값 `0.5`를 사용한다.
 
 ## 2. API
 
-### 추천 미리보기
+### 포짓 추천 여행 카드 미리보기
 
 ```http
-POST /api/travels/{travelId}/recommendations/preview
+POST /api/recommendations/travels/preview/card
 ```
 
-해당 여행의 지역, 날짜, 여행스타일, 교통수단, 태그를 기반으로 날짜별 추천 코스를 생성한다.
+여행 생성 입력값을 기반으로 추천 결과를 여행 카드 UI에 바로 표시할 수 있도록 카드 메타 정보와 추천 상세 조회용 `previewId`를 반환한다.
+이 시점에는 여행을 DB에 생성하지 않으므로 뒤로 가기/이탈 시 여행 목록에 노출되지 않는다.
+추천 상세는 Redis에 30분 동안 임시 저장된다.
+같은 지역의 공개된 타인 여행은 좋아요 수가 많은 순서로 최대 2개를 함께 반환하고, 좋아요 수로 정렬할 수 없는 경우 랜덤으로 최대 2개를 반환한다.
 
-요청 사용자는 해당 여행의 멤버여야 한다.
-
-응답 예시:
+요청 예시:
 
 ```json
 {
-  "isSuccess": true,
-  "code": "COMMON200",
-  "message": "요청에 성공했습니다.",
-  "result": {
-    "travelId": 1,
-    "dayCount": 2,
-    "days": [
-      {
-        "dayNumber": 1,
-        "date": "2026-08-01",
-        "places": [
-          {
-            "orderIndex": 1,
-            "contentId": "126508",
-            "contentTypeId": "12",
-            "title": "경복궁",
-            "address": "서울특별시 종로구 사직로 161",
-            "imageUrl": "https://...",
-            "latitude": 37.579617,
-            "longitude": 126.977041,
-            "stayMinutes": 90,
-            "finalScore": 0.684,
-            "contentScore": 0.719,
-            "transportationScore": 0.7,
-            "qualityScore": 0.9
-          }
-        ]
-      }
-    ]
-  }
+  "title": "강릉 여행",
+  "destination": "강릉",
+  "regionCode": "42150",
+  "startDate": "2026-08-01",
+  "endDate": "2026-08-02",
+  "transportation": "PUBLIC",
+  "travelStyle": "NORMAL",
+  "tagIds": [1, 2]
 }
 ```
-
-### 추천 카드 미리보기
-
-```http
-POST /api/travels/{travelId}/recommendations/preview/card
-```
-
-추천 결과를 여행 카드 UI에 바로 표시할 수 있도록 카드 메타 정보와 추천 상세 조회용 `previewId`를 반환한다.
-추천 결과는 DB에 저장하지 않는다.
-추천 상세는 Redis에 30분 동안 임시 저장된다.
-같은 지역의 공개된 타인 여행은 좋아요 수가 많은 순서로 최대 2개를 함께 반환하고, 좋아요 수로 정렬할 수 없는 경우 랜덤으로 최대 2개를 반환한다.
 
 응답 예시:
 
@@ -104,7 +71,7 @@ POST /api/travels/{travelId}/recommendations/preview/card
   "result": {
     "previewId": "7a0a4c4b-4d8d-4d66-bca1-5b1f5ec2f22e",
     "previewExpiresInSeconds": 1800,
-    "travelId": 1,
+    "travelId": null,
     "badge": "Pozit Pick!",
     "cardTitle": "8월 추천, 강릉은 어때요?",
     "travelTitle": "강릉 여행",
@@ -141,14 +108,15 @@ POST /api/travels/{travelId}/recommendations/preview/card
 }
 ```
 
-### 추천 미리보기 상세 조회
+### 포짓 추천 여행 미리보기 상세 조회
 
 ```http
-GET /api/travels/{travelId}/recommendations/previews/{previewId}
+GET /api/recommendations/travels/previews/{previewId}
 ```
 
 추천 카드 미리보기에서 발급된 `previewId`로 날짜별 추천 코스 상세를 조회한다.
-`previewId`는 발급받은 사용자와 여행에만 유효하며, 만료되면 404를 반환한다.
+이 시점에도 여행을 DB에 생성하지 않는다.
+`previewId`는 발급받은 사용자에게만 유효하며, 만료되면 404를 반환한다.
 
 응답 예시:
 
@@ -158,7 +126,7 @@ GET /api/travels/{travelId}/recommendations/previews/{previewId}
   "code": "COMMON200",
   "message": "요청에 성공했습니다.",
   "result": {
-    "travelId": 1,
+    "travelId": null,
     "dayCount": 2,
     "days": [
       {
@@ -187,16 +155,106 @@ GET /api/travels/{travelId}/recommendations/previews/{previewId}
 }
 ```
 
+### 포짓 추천 여행 편집 시작
+
+```http
+POST /api/recommendations/travels/start
+```
+
+사용자가 `여행 시작하기` 버튼을 누른 시점에 `previewId`와 추천 코스를 받아 편집용 임시 여행과 코스를 DB에 생성한다.
+임시 여행의 상태는 `DRAFT`이며 여행 목록, 초대/참여, 시작 알림에는 노출되지 않는다.
+성공 후 응답의 `travelId`, `courseId`를 이용해 기존 코스 편집 화면으로 이동한다.
+
+요청 예시:
+
+```json
+{
+  "previewId": "7a0a4c4b-4d8d-4d66-bca1-5b1f5ec2f22e",
+  "days": [
+    {
+      "dayNumber": 1,
+      "places": [
+        {
+          "orderIndex": 1,
+          "contentId": "126508",
+          "contentTypeId": "12",
+          "title": "경포해변",
+          "address": "강원특별자치도 강릉시 ...",
+          "imageUrl": "https://...",
+          "latitude": 37.805,
+          "longitude": 128.908,
+          "legalDongRegionCode": "42",
+          "legalDongSigunguCode": "42150"
+        }
+      ]
+    }
+  ]
+}
+```
+
+응답 예시:
+
+```json
+{
+  "isSuccess": true,
+  "code": "COMMON200",
+  "message": "요청에 성공했습니다.",
+  "result": {
+    "travelId": 10,
+    "courses": [
+      {
+        "courseId": 21,
+        "dayNumber": 1,
+        "date": "2026-08-01"
+      }
+    ]
+  }
+}
+```
+
+### 포짓 추천 여행 최종 생성
+
+```http
+POST /api/recommendations/travels/{travelId}/complete
+```
+
+코스 편집 완료 시점에 호출한다.
+`DRAFT` 상태의 임시 여행을 정식 여행으로 확정하며, 이 시점부터 여행 목록에 노출된다.
+
+### 포짓 추천 임시 여행 삭제
+
+```http
+DELETE /api/recommendations/travels/{travelId}
+```
+
+코스 편집 중 사용자가 뒤로 가기/취소/이탈하는 경우 호출한다.
+`DRAFT` 상태의 임시 여행과 코스 데이터를 삭제한다.
+강제 종료 등으로 삭제 요청이 전달되지 못한 임시 여행은 생성 후 24시간이 지나면 스케줄러가 삭제한다.
+
 ## 3. 전체 처리 흐름
 
 ```text
-travelId 수신
-  ↓
-Travel 조회 및 여행 멤버 권한 검증
-  ↓
-TravelTag 조회
+TravelCreateRequest 수신
   ↓
 CourseRecommendCommand 생성
+  ↓
+추천 후보 생성 및 추천 상세 Redis 임시 저장
+  ↓
+previewId 반환
+  ↓
+여행 시작하기 클릭
+  ↓
+DRAFT 여행 및 코스 생성
+  ↓
+기존 코스 편집 API로 코스 편집
+  ↓
+편집 완료 시 DRAFT 여행 최종 확정
+```
+
+추천 후보 생성 세부 흐름:
+
+```text
+CourseRecommendCommand 수신
   ↓
 지역 기반 목록 API 호출
   ↓
@@ -538,6 +596,7 @@ ReRankScore
 ```text
 RouteOptimizationService
 StayTimePolicy
+OperatingHoursParser
 ```
 
 여행스타일별 하루 장소 수:
@@ -548,23 +607,35 @@ StayTimePolicy
 | NORMAL | 5 |
 | TIGHT | 7 |
 
-현재 날짜 배정 방식:
+여행스타일별 체류시간 보정:
 
 ```text
-1. 추천 상위 장소를 여행 일수 * 하루 장소 수만큼 선택
-2. 경도 기준으로 정렬
-3. 하루 장소 수만큼 끊어 날짜별 배정
+RELAXED: 콘텐츠 타입별 기본 체류시간 * 1.2
+NORMAL:  콘텐츠 타입별 기본 체류시간 * 1.0
+TIGHT:   콘텐츠 타입별 기본 체류시간 * 0.8
 ```
 
-현재 하루 안 방문 순서:
+현재 일정 생성 방식:
 
 ```text
-1. 해당 날짜 장소 중 finalScore가 가장 높은 장소를 시작점으로 선택
-2. 현재 장소에서 좌표상 가장 가까운 장소를 다음 장소로 선택
-3. 모든 장소가 배치될 때까지 반복
+1. 여행스타일별 하루 시간대를 설정한다.
+   - RELAXED: 10:30 ~ 18:00
+   - NORMAL:  10:00 ~ 20:00
+   - TIGHT:   09:30 ~ 21:00
+2. 좌표 거리 기반으로 장소 간 이동시간을 추정한다.
+   - WALK:   4km/h + 5분
+   - CAR:    30km/h + 10분
+   - PUBLIC: 18km/h + 15분
+3. 음식점(contentTypeId=39)은 점심/저녁 슬롯에 우선 배치한다.
+   - 점심: 12:00 ~ 13:30
+   - 저녁: 18:00 ~ 19:30
+4. 후보 장소 방문 시작/종료 시간이 운영시간 안에 들어오는지 검증한다.
+5. 운영시간 밖이면 해당 후보는 제외하고 다음 후보를 선택한다.
+6. 운영시간 문자열을 파싱할 수 없으면 unknown으로 보고 허용한다.
 ```
 
-이는 실제 이동시간 기반 최적화가 아니라 MVP용 좌표 기반 근사 방식이다.
+운영시간 파싱은 Tour API 문자열 품질을 고려해 `HH:mm~HH:mm`, `HHmm~HHmm`, `상시`, `24시간`, `연중무휴`, 요일 휴무 정도만 보수적으로 처리한다.
+파싱 실패를 오류로 보지 않는 이유는 운영시간 데이터 포맷이 일정하지 않아 추천 결과가 비는 상황을 줄이기 위함이다.
 
 ## 12. 클래스별 역할
 
@@ -572,7 +643,7 @@ StayTimePolicy
 
 | 클래스 | 역할 |
 | --- | --- |
-| `CourseRecommendationController` | 추천 미리보기 API를 제공한다. |
+| `RecommendedTravelController` | 여행 생성 전 추천 미리보기, 편집용 임시 여행 생성, 최종 확정/취소 API를 제공한다. |
 
 ### DTO
 
@@ -606,8 +677,9 @@ StayTimePolicy
 | `TransportationScoreCalculator` | 교통수단 적합도를 계산한다. |
 | `PlaceQualityScoreCalculator` | 장소 정보 품질 점수를 계산한다. |
 | `DiversityRerankingService` | 동일 콘텐츠 타입 반복을 줄인다. |
-| `RouteOptimizationService` | 날짜별 장소 배치와 방문 순서를 만든다. |
-| `StayTimePolicy` | 콘텐츠 타입별 기본 체류시간을 반환한다. |
+| `RouteOptimizationService` | 식사 슬롯, 운영시간, 이동시간을 고려해 날짜별 장소 배치와 방문 순서를 만든다. |
+| `StayTimePolicy` | 콘텐츠 타입별 기본 체류시간에 여행스타일 보정을 적용한다. |
+| `OperatingHoursParser` | Tour API 운영시간/휴무 문자열을 방문 가능 시간 모델로 변환한다. |
 
 ## 13. 다음 개선 과제
 
@@ -615,7 +687,6 @@ StayTimePolicy
 - 지역별 방문자수 API 연동
 - 두루누비 API 연동
 - 지도 길찾기 API 기반 실제 이동시간 반영
-- 추천 결과 확정 저장 API 추가
 - 관광정보 API `sigunguCode` 정밀 매핑 테이블 추가
 - 장소 벡터 유사도 기반 다양성 패널티 추가
 
