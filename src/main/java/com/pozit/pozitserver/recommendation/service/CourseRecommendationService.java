@@ -11,27 +11,34 @@ import com.pozit.pozitserver.global.exception.ErrorCode;
 import com.pozit.pozitserver.recommendation.dto.RecommendedCourseCardResponse;
 import com.pozit.pozitserver.recommendation.dto.RecommendedCourseResponse;
 import com.pozit.pozitserver.recommendation.dto.RecommendedCourseSaveRequest;
+import com.pozit.pozitserver.recommendation.dto.RecommendedTravelStartRequest;
 import com.pozit.pozitserver.recommendation.model.CandidatePlace;
 import com.pozit.pozitserver.recommendation.model.CourseRecommendCommand;
 import com.pozit.pozitserver.recommendation.model.PlaceFeatureVector;
 import com.pozit.pozitserver.recommendation.model.RecommendationTag;
 import com.pozit.pozitserver.recommendation.model.ScoredPlace;
 import com.pozit.pozitserver.pozing.repository.PozingRepository;
-import com.pozit.pozitserver.tag.repository.TravelTagRepository;
+import com.pozit.pozitserver.tag.domain.Tag;
+import com.pozit.pozitserver.tag.repository.TagRepository;
 import com.pozit.pozitserver.travel.domain.Travel;
 import com.pozit.pozitserver.travel.domain.TravelMember;
 import com.pozit.pozitserver.travel.domain.TravelMemberRole;
 import com.pozit.pozitserver.travel.domain.TravelStatus;
+import com.pozit.pozitserver.travel.dto.request.TravelCreateRequest;
+import com.pozit.pozitserver.travel.dto.response.TravelCreateResponse;
 import com.pozit.pozitserver.travel.dto.response.PublicTravelListResponse;
 import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
 import com.pozit.pozitserver.travel.service.TravelService;
 import com.pozit.pozitserver.user.domain.User;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -48,17 +55,18 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 @Transactional(readOnly = true)
 public class CourseRecommendationService {
 
+    private static final Logger log = LoggerFactory.getLogger(CourseRecommendationService.class);
+
     private final TravelRepository travelRepository;
     private final TravelMemberRepository travelMemberRepository;
-    private final TravelTagRepository travelTagRepository;
     private final CourseRepository courseRepository;
     private final CourseSpotRepository courseSpotRepository;
     private final TouristSpotRepository touristSpotRepository;
     private final PozingRepository pozingRepository;
+    private final TagRepository tagRepository;
     private final TourApiCandidateProvider candidateProvider;
     private final UserPreferenceVectorFactory userPreferenceVectorFactory;
     private final PlaceFeatureExtractor placeFeatureExtractor;
@@ -69,24 +77,13 @@ public class CourseRecommendationService {
     private final TravelService travelService;
     private final RecommendationPreviewStore recommendationPreviewStore;
 
-    public RecommendedCourseResponse preview(Long travelId, User currentUser) {
-        Travel travel = travelRepository.findById(travelId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
-        validateMember(travel, currentUser);
-
-        return createPreview(travel);
-    }
-
-    public RecommendedCourseCardResponse previewCard(Long travelId, User currentUser) {
-        Travel travel = travelRepository.findById(travelId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
-        validateMember(travel, currentUser);
-
-        RecommendedCourseResponse recommendedCourse = createPreview(travel);
-        String previewId = recommendationPreviewStore.save(travel.getId(), currentUser.getId(), recommendedCourse);
-        List<String> tags = travelTagRepository.findTagNamesByTravelId(travel.getId());
+    public RecommendedCourseCardResponse previewDraftCard(TravelCreateRequest request, User currentUser) {
+        CourseRecommendCommand command = toCommand(request);
+        RecommendedCourseResponse recommendedCourse = createPreview(command);
+        String previewId = recommendationPreviewStore.saveDraft(currentUser.getId(), request, recommendedCourse);
+        List<String> tags = findTagNamesByIds(request.tagIds());
         if (tags.isEmpty()) {
-            tags = toCommand(travel).tags().stream()
+            tags = command.tags().stream()
                     .map(RecommendationTag::koreanName)
                     .toList();
         }
@@ -101,51 +98,82 @@ public class CourseRecommendationService {
                 .distinct()
                 .limit(3)
                 .toList();
-        if (imageUrls.isEmpty() && travel.getBackgroundImageUrl() != null && !travel.getBackgroundImageUrl().isBlank()) {
-            imageUrls = List.of(travel.getBackgroundImageUrl());
-        }
 
         return new RecommendedCourseCardResponse(
                 previewId,
                 RecommendationPreviewStore.TTL_SECONDS,
-                travel.getId(),
+                null,
                 "Pozit Pick!",
-                createCardTitle(travel),
-                travel.getTitle(),
-                travel.getDestination(),
-                travel.getStartDate(),
-                travel.getEndDate(),
+                createCardTitle(request.startDate(), request.destination()),
+                request.title(),
+                request.destination(),
+                request.startDate(),
+                request.endDate(),
                 recommendedCourse.dayCount(),
                 Math.max(recommendedCourse.dayCount() - 1, 0),
-                createPeriodText(travel.getStartDate(), travel.getEndDate()),
+                createPeriodText(request.startDate(), request.endDate()),
                 imageUrls.isEmpty() ? null : imageUrls.get(0),
                 imageUrls,
                 tags,
-                Math.toIntExact(travelMemberRepository.countByTravel(travel)),
+                1,
                 previewPlaces.size(),
-                findRelatedPublicTravels(travel, currentUser)
+                findRelatedPublicTravels(request.regionCode(), currentUser)
         );
     }
 
-    public RecommendedCourseResponse getPreview(Long travelId, User currentUser, String previewId) {
-        Travel travel = travelRepository.findById(travelId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
-        validateMember(travel, currentUser);
-
-        return recommendationPreviewStore.find(previewId, travel.getId(), currentUser.getId());
+    public RecommendedCourseResponse getDraftPreview(User currentUser, String previewId) {
+        return recommendationPreviewStore.findDraft(previewId, currentUser.getId()).recommendedCourse();
     }
 
-    private RecommendedCourseResponse createPreview(Travel travel) {
-        CourseRecommendCommand command = toCommand(travel);
+    @Transactional
+    public TravelCreateResponse startRecommendedTravel(User currentUser, RecommendedTravelStartRequest request) {
+        RecommendationPreviewStore.DraftPreview draftPreview =
+                recommendationPreviewStore.findDraft(request.previewId(), currentUser.getId());
+
+        TravelCreateResponse travelCreateResponse = travelService.makeDraftTravel(
+                draftPreview.travelCreateRequest(),
+                currentUser
+        );
+        commit(travelCreateResponse.travelId(), currentUser, new RecommendedCourseSaveRequest(request.days()));
+        deletePreviewAfterCommit(request.previewId());
+
+        return travelCreateResponse;
+    }
+
+    @Transactional
+    public void completeRecommendedTravel(User currentUser, Long travelId) {
+        travelService.completeDraftTravel(currentUser, travelId);
+    }
+
+    @Transactional
+    public void cancelRecommendedTravel(User currentUser, Long travelId) {
+        travelService.deleteDraftTravel(currentUser, travelId);
+    }
+
+    private void deletePreviewAfterCommit(String previewId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            recommendationPreviewStore.delete(previewId);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                recommendationPreviewStore.delete(previewId);
+            }
+        });
+    }
+
+    private RecommendedCourseResponse createPreview(CourseRecommendCommand command) {
         List<CandidatePlace> candidates = candidateProvider.findCandidates(command);
         if (candidates.isEmpty()) {
-            candidates = findStoredCandidateFallback(travel);
+            candidates = findStoredCandidateFallback(command);
         }
         if (candidates.isEmpty()) {
             log.warn("No recommendable candidates found from Tour API or stored spots. travelId={}, destination={}, regionCode={}, tags={}",
-                    travel.getId(),
-                    travel.getDestination(),
-                    travel.getRegionCode(),
+                    command.travelId(),
+                    command.destination(),
+                    command.regionCode(),
                     command.tags()
             );
             throw new BusinessException(ErrorCode.RECOMMENDABLE_PLACE_NOT_FOUND);
@@ -163,9 +191,9 @@ public class CourseRecommendationService {
         RecommendedCourseResponse recommendedCourse = routeOptimizationService.createCourse(diversifiedPlaces, command);
         if (hasNoSaveablePlaces(recommendedCourse)) {
             log.info("Recommendation result has no saveable places. travelId={}, destination={}, regionCode={}, candidates={}",
-                    travel.getId(),
-                    travel.getDestination(),
-                    travel.getRegionCode(),
+                    command.travelId(),
+                    command.destination(),
+                    command.regionCode(),
                     candidates.size()
             );
             throw new BusinessException(ErrorCode.RECOMMENDABLE_PLACE_NOT_FOUND);
@@ -174,12 +202,12 @@ public class CourseRecommendationService {
         return recommendedCourse;
     }
 
-    private List<CandidatePlace> findStoredCandidateFallback(Travel travel) {
-        String legalDongRegionCode = legalDongRegionCode(travel.getRegionCode());
-        String legalDongSigunguCode = legalDongSigunguCode(travel.getRegionCode());
+    private List<CandidatePlace> findStoredCandidateFallback(CourseRecommendCommand command) {
+        String legalDongRegionCode = legalDongRegionCode(command.regionCode());
+        String legalDongSigunguCode = legalDongSigunguCode(command.regionCode());
 
         List<TouristSpot> touristSpots = touristSpotRepository.findRecommendableByRegion(
-                travel.getRegionCode(),
+                command.regionCode(),
                 legalDongRegionCode,
                 legalDongSigunguCode,
                 PageRequest.of(0, 40)
@@ -190,8 +218,8 @@ public class CourseRecommendationService {
 
         if (!touristSpots.isEmpty()) {
             log.info("Using stored tourist spot fallback for recommendation. travelId={}, regionCode={}, candidateCount={}",
-                    travel.getId(),
-                    travel.getRegionCode(),
+                    command.travelId(),
+                    command.regionCode(),
                     touristSpots.size()
             );
         }
@@ -261,9 +289,9 @@ public class CourseRecommendationService {
                         && !place.title().isBlank());
     }
 
-    private String createCardTitle(Travel travel) {
-        return travel.getStartDate().getMonthValue() + "월 추천, "
-                + travel.getDestination() + topicParticle(travel.getDestination()) + " 어때요?";
+    private String createCardTitle(LocalDate startDate, String destination) {
+        return startDate.getMonthValue() + "월 추천, "
+                + destination + topicParticle(destination) + " 어때요?";
     }
 
     private String createPeriodText(LocalDate startDate, LocalDate endDate) {
@@ -289,10 +317,10 @@ public class CourseRecommendationService {
         return (lastChar - '가') % 28 == 0 ? "는" : "은";
     }
 
-    private List<PublicTravelListResponse> findRelatedPublicTravels(Travel travel, User currentUser) {
+    private List<PublicTravelListResponse> findRelatedPublicTravels(String regionCode, User currentUser) {
         List<PublicTravelListResponse> publicTravels = travelService.getPublicTravels(
                 currentUser,
-                travel.getRegionCode(),
+                regionCode,
                 null,
                 null,
                 null,
@@ -326,8 +354,7 @@ public class CourseRecommendationService {
                 .toList();
     }
 
-    @Transactional
-    public void commit(Long travelId, User currentUser, RecommendedCourseSaveRequest request) {
+    private void commit(Long travelId, User currentUser, RecommendedCourseSaveRequest request) {
         Travel travel = travelRepository.findById(travelId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
         validateLeader(travel, currentUser);
@@ -379,8 +406,8 @@ public class CourseRecommendationService {
         return ScoredPlace.contentOnly(place, featureVector, contentScore);
     }
 
-    private CourseRecommendCommand toCommand(Travel travel) {
-        List<RecommendationTag> tags = travelTagRepository.findTagNamesByTravelId(travel.getId()).stream()
+    private CourseRecommendCommand toCommand(TravelCreateRequest request) {
+        List<RecommendationTag> tags = findTagNamesByIds(request.tagIds()).stream()
                 .map(RecommendationTag::fromName)
                 .flatMap(Optional::stream)
                 .distinct()
@@ -392,21 +419,25 @@ public class CourseRecommendationService {
         }
 
         return new CourseRecommendCommand(
-                travel.getId(),
-                travel.getDestination(),
-                travel.getRegionCode(),
-                travel.getStartDate(),
-                travel.getEndDate(),
-                travel.getTravelStyle(),
-                travel.getTransportation(),
+                null,
+                request.destination(),
+                request.regionCode(),
+                request.startDate(),
+                request.endDate(),
+                request.travelStyle(),
+                request.transportation(),
                 tags
         );
     }
 
-    private void validateMember(Travel travel, User user) {
-        if (!travelMemberRepository.existsByTravelAndUser(travel, user)) {
-            throw new BusinessException(ErrorCode.NOT_VALID_TRAVEL_MEMBER);
-        }
+    private List<String> findTagNamesByIds(List<Long> tagIds) {
+        List<Long> distinctTagIds = tagIds.stream()
+                .distinct()
+                .toList();
+
+        return tagRepository.findAllById(distinctTagIds).stream()
+                .map(Tag::getName)
+                .toList();
     }
 
     private void validateLeader(Travel travel, User user) {

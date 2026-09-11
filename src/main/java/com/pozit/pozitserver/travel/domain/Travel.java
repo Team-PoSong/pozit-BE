@@ -146,7 +146,27 @@ public class Travel {
         this.status = status;
     }
 
+    public void markDraft() {
+        this.status = TravelStatus.DRAFT;
+    }
+
+    public void confirmDraft(LocalDate today) {
+        if (this.status != TravelStatus.DRAFT) {
+            throw new BusinessException(ErrorCode.COMMON400);
+        }
+
+        this.status = TravelStatus.BEFORE;
+        syncStatus(today);
+    }
+
+    public boolean isDraft() {
+        return this.status == TravelStatus.DRAFT;
+    }
+
     public TravelStatus calculateStatus(LocalDate today) {
+        if (this.status == TravelStatus.DRAFT) {
+            return TravelStatus.DRAFT;
+        }
         if (this.status == TravelStatus.DONE || today.isAfter(this.endDate)) {
             return TravelStatus.DONE;
         }
