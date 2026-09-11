@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 @Entity
 @Getter
@@ -52,6 +53,12 @@ public class TouristSpot {
     @Column(name = "image_url", length = 555)
     private String imageUrl;
 
+    @Column(name = "tour_api_synced_at")
+    private Instant tourApiSyncedAt;
+
+    @Column(name = "tour_api_sync_failed_count")
+    private Integer tourApiSyncFailedCount = 0;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "region_id")
     private Region region;
@@ -77,5 +84,37 @@ public class TouristSpot {
         this.latitude = latitude;
         this.longitude = longitude;
         this.imageUrl = imageUrl;
+    }
+
+    public void updateTourApiInfo(
+            String contentTypeId,
+            String name,
+            String legalDongRegionCode,
+            String legalDongSigunguCode,
+            String address,
+            BigDecimal latitude,
+            BigDecimal longitude,
+            String imageUrl
+    ) {
+        this.contentTypeId = firstNotBlank(contentTypeId, this.contentTypeId);
+        this.name = firstNotBlank(name, this.name);
+        this.legalDongRegionCode = firstNotBlank(legalDongRegionCode, this.legalDongRegionCode);
+        this.legalDongSigunguCode = firstNotBlank(legalDongSigunguCode, this.legalDongSigunguCode);
+        this.address = address == null ? this.address : address;
+        this.latitude = latitude == null ? this.latitude : latitude;
+        this.longitude = longitude == null ? this.longitude : longitude;
+        this.imageUrl = firstNotBlank(imageUrl, this.imageUrl);
+        this.tourApiSyncedAt = Instant.now();
+        this.tourApiSyncFailedCount = 0;
+    }
+
+    public void markTourApiSyncFailed() {
+        this.tourApiSyncFailedCount = tourApiSyncFailedCount == null
+                ? 1
+                : tourApiSyncFailedCount + 1;
+    }
+
+    private String firstNotBlank(String candidate, String fallback) {
+        return candidate == null || candidate.isBlank() ? fallback : candidate;
     }
 }
