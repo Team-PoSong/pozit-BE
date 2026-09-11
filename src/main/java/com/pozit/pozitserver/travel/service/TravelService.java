@@ -35,7 +35,8 @@ import com.pozit.pozitserver.travel.repository.TravelMemberRepository;
 import com.pozit.pozitserver.travel.repository.TravelRepository;
 import com.pozit.pozitserver.user.domain.User;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +45,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.LocalDate;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -61,8 +63,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-@Slf4j
 public class TravelService {
+
+    private static final Logger log = LoggerFactory.getLogger(TravelService.class);
 
     private static final int SEARCH_LIMIT = 10;
     private static final int POPULAR_PUBLIC_TRAVEL_CARD_LIMIT = 3;
@@ -93,6 +96,15 @@ public class TravelService {
      */
     @Transactional
     public TravelCreateResponse makeTravel(TravelCreateRequest request, User user) {
+        return createTravel(request, user, false);
+    }
+
+    @Transactional
+    public TravelCreateResponse makeDraftTravel(TravelCreateRequest request, User user) {
+        return createTravel(request, user, true);
+    }
+
+    private TravelCreateResponse createTravel(TravelCreateRequest request, User user, boolean draft) {
         List<Long> distinctTagIds=request.tagIds()
                 .stream()
                 .distinct()
@@ -110,6 +122,9 @@ public class TravelService {
                 .travelStyle(request.travelStyle())
                 .inviteCode(inviteCode)
                 .build());
+        if (draft) {
+            savedTravel.markDraft();
+        }
 
         List<TravelTag> travelTags=tags.stream()
                 .map(tag->TravelTag.create(savedTravel,tag))
@@ -173,6 +188,9 @@ public class TravelService {
     public InviteCodeResponse getInviteCode(Long travelId){
         Travel travel=travelRepository.findById(travelId)
                 .orElseThrow(()->new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
+        if (travel.isDraft()) {
+            throw new BusinessException(ErrorCode.TRAVEL_NOT_FOUND);
+        }
         return new InviteCodeResponse(travelId,travel.getInviteCode());
     }
 
@@ -182,6 +200,9 @@ public class TravelService {
     public TravelJoinResponse findTravel(TravelJoinRequest request, User user){
         Travel travel=travelRepository.findByInviteCode(request.inviteCode())
                 .orElseThrow(()->new BusinessException(ErrorCode.INVALID_INVITE_CODE));
+        if (travel.isDraft()) {
+            throw new BusinessException(ErrorCode.INVALID_INVITE_CODE);
+        }
 //        validateJoinable(travel,user);
 
         Long memberCount=travelMemberRepository.countByTravel(travel);
@@ -209,6 +230,9 @@ public class TravelService {
     public JoinResponse joinTravel(Long travelId, User user){
         Travel travel=travelRepository.findByIdForUpdate(travelId)
                 .orElseThrow(()->new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
+        if (travel.isDraft()) {
+            throw new BusinessException(ErrorCode.TRAVEL_NOT_FOUND);
+        }
 
         if (calculateStatus(travel) == TravelStatus.DONE) {
             throw new BusinessException(ErrorCode.CANNOT_JOIN_FINISHED_TRAVEL);
@@ -252,6 +276,7 @@ public class TravelService {
 
         List<Travel> travels = myMemberships.stream()
                 .map(TravelMember::getTravel)
+                .filter(travel -> !travel.isDraft())
                 .filter(travel -> isDone
                         ? travel.calculateStatus(today) == TravelStatus.DONE
                         : travel.calculateStatus(today) != TravelStatus.DONE)
@@ -268,6 +293,7 @@ public class TravelService {
         LocalDate today = LocalDate.now(STATUS_ZONE);
         List<Travel> activeTravels = travelMemberRepository.findAllWithTravelByUser(currentUser).stream()
                 .map(TravelMember::getTravel)
+                .filter(travel -> !travel.isDraft())
                 .filter(travel -> travel.calculateStatus(today) == TravelStatus.IN_PROGRESS)
                 .toList();
 
@@ -522,6 +548,40 @@ public class TravelService {
         }
 
         return buildPublicTravelListResponses(travels, currentUser);
+    }
+
+    @Transactional
+    public void completeDraftTravel(User currentUser, Long travelId) {
+        Travel travel = travelRepository.findByIdForUpdate(travelId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
+
+        validateLeader(travel, currentUser);
+        travel.confirmDraft(LocalDate.now(STATUS_ZONE));
+    }
+
+    @Transactional
+    public void deleteDraftTravel(User currentUser, Long travelId) {
+        Travel travel = travelRepository.findByIdForUpdate(travelId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TRAVEL_NOT_FOUND));
+
+        validateLeader(travel, currentUser);
+        if (!travel.isDraft()) {
+            throw new BusinessException(ErrorCode.COMMON400);
+        }
+
+        deleteTravel(travel);
+    }
+
+    @Transactional
+    public int deleteExpiredDraftTravels(Duration expiration) {
+        LocalDateTime threshold = LocalDateTime.now(STATUS_ZONE).minus(expiration);
+        List<Travel> expiredDraftTravels = travelRepository.findByStatusAndCreatedAtBefore(
+                TravelStatus.DRAFT,
+                threshold
+        );
+
+        expiredDraftTravels.forEach(this::deleteTravel);
+        return expiredDraftTravels.size();
     }
 
     public List<PublicTravelListResponse> getPopularPublicTravelCards(User currentUser) {
@@ -998,6 +1058,11 @@ public class TravelService {
             throw new BusinessException(ErrorCode.CANNOT_DELETE_COMPLETED_TRAVEL);
         }
 
+        deleteTravel(travel);
+    }
+
+    private void deleteTravel(Travel travel) {
+
         boolean hasActiveEditJob = pozingEditJobRepository.existsByTravelAndStatusIn(
                 travel,
                 List.of(PozingEditJobStatus.QUEUED, PozingEditJobStatus.PROCESSING)
@@ -1021,15 +1086,15 @@ public class TravelService {
         editJobs.stream().map(PozingEditJob::getResultS3Key).filter(Objects::nonNull).forEach(objectKeysToDelete::add);
         String backgroundImageKey = travel.getBackgroundImageUrl();
 
-        timelapseManifestRepository.deleteAll(timelapseManifestRepository.findByTravel(travel));
-        pozingEditJobRepository.deleteAll(editJobs);
-        pozingRepository.deleteAll(pozings);
-        courseSpotRepository.deleteAll(spots);
-        courseRepository.deleteAll(courses);
-        travelTagRepository.deleteAll(travelTagRepository.findByTravel(travel));
+        timelapseManifestRepository.deleteAllInBatch(timelapseManifestRepository.findByTravel(travel));
+        pozingEditJobRepository.deleteAllInBatch(editJobs);
+        pozingRepository.deleteAllInBatch(pozings);
+        courseSpotRepository.deleteAllInBatch(spots);
+        courseRepository.deleteAllInBatch(courses);
+        travelTagRepository.deleteAllInBatch(travelTagRepository.findByTravel(travel));
         likeRepository.deleteByTravel(travel);
         notificationService.deleteByTravel(travel);
-        travelMemberRepository.deleteAll(travelMemberRepository.findByTravel(travel));
+        travelMemberRepository.deleteAllInBatch(travelMemberRepository.findByTravel(travel));
         travelRepository.delete(travel);
 
         deleteTravelObjectsAfterCommit(objectKeysToDelete, backgroundImageKey);
