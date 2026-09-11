@@ -596,6 +596,7 @@ ReRankScore
 ```text
 RouteOptimizationService
 StayTimePolicy
+OperatingHoursParser
 ```
 
 여행스타일별 하루 장소 수:
@@ -606,23 +607,35 @@ StayTimePolicy
 | NORMAL | 5 |
 | TIGHT | 7 |
 
-현재 날짜 배정 방식:
+여행스타일별 체류시간 보정:
 
 ```text
-1. 추천 상위 장소를 여행 일수 * 하루 장소 수만큼 선택
-2. 경도 기준으로 정렬
-3. 하루 장소 수만큼 끊어 날짜별 배정
+RELAXED: 콘텐츠 타입별 기본 체류시간 * 1.2
+NORMAL:  콘텐츠 타입별 기본 체류시간 * 1.0
+TIGHT:   콘텐츠 타입별 기본 체류시간 * 0.8
 ```
 
-현재 하루 안 방문 순서:
+현재 일정 생성 방식:
 
 ```text
-1. 해당 날짜 장소 중 finalScore가 가장 높은 장소를 시작점으로 선택
-2. 현재 장소에서 좌표상 가장 가까운 장소를 다음 장소로 선택
-3. 모든 장소가 배치될 때까지 반복
+1. 여행스타일별 하루 시간대를 설정한다.
+   - RELAXED: 10:30 ~ 18:00
+   - NORMAL:  10:00 ~ 20:00
+   - TIGHT:   09:30 ~ 21:00
+2. 좌표 거리 기반으로 장소 간 이동시간을 추정한다.
+   - WALK:   4km/h + 5분
+   - CAR:    30km/h + 10분
+   - PUBLIC: 18km/h + 15분
+3. 음식점(contentTypeId=39)은 점심/저녁 슬롯에 우선 배치한다.
+   - 점심: 12:00 ~ 13:30
+   - 저녁: 18:00 ~ 19:30
+4. 후보 장소 방문 시작/종료 시간이 운영시간 안에 들어오는지 검증한다.
+5. 운영시간 밖이면 해당 후보는 제외하고 다음 후보를 선택한다.
+6. 운영시간 문자열을 파싱할 수 없으면 unknown으로 보고 허용한다.
 ```
 
-이는 실제 이동시간 기반 최적화가 아니라 MVP용 좌표 기반 근사 방식이다.
+운영시간 파싱은 Tour API 문자열 품질을 고려해 `HH:mm~HH:mm`, `HHmm~HHmm`, `상시`, `24시간`, `연중무휴`, 요일 휴무 정도만 보수적으로 처리한다.
+파싱 실패를 오류로 보지 않는 이유는 운영시간 데이터 포맷이 일정하지 않아 추천 결과가 비는 상황을 줄이기 위함이다.
 
 ## 12. 클래스별 역할
 
@@ -664,8 +677,9 @@ StayTimePolicy
 | `TransportationScoreCalculator` | 교통수단 적합도를 계산한다. |
 | `PlaceQualityScoreCalculator` | 장소 정보 품질 점수를 계산한다. |
 | `DiversityRerankingService` | 동일 콘텐츠 타입 반복을 줄인다. |
-| `RouteOptimizationService` | 날짜별 장소 배치와 방문 순서를 만든다. |
-| `StayTimePolicy` | 콘텐츠 타입별 기본 체류시간을 반환한다. |
+| `RouteOptimizationService` | 식사 슬롯, 운영시간, 이동시간을 고려해 날짜별 장소 배치와 방문 순서를 만든다. |
+| `StayTimePolicy` | 콘텐츠 타입별 기본 체류시간에 여행스타일 보정을 적용한다. |
+| `OperatingHoursParser` | Tour API 운영시간/휴무 문자열을 방문 가능 시간 모델로 변환한다. |
 
 ## 13. 다음 개선 과제
 
