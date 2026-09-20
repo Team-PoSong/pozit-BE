@@ -60,7 +60,6 @@ public class PozingService {
     private static final Duration PRESIGNED_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final Duration POZING_GET_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final Duration THUMBNAIL_GET_URL_EXPIRATION = Duration.ofMinutes(10);
-    private static final String POZING_VIDEO_CONTENT_TYPE = "video/mp4";
 
     private final S3Service s3Service;
     private final CourseSpotRepository courseSpotRepository;
@@ -93,7 +92,6 @@ public class PozingService {
 
         var presignedUrl = s3Service.createPutPresignedUrl(
                 key,
-                POZING_VIDEO_CONTENT_TYPE,
                 PRESIGNED_URL_EXPIRATION
         );
 

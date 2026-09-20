@@ -36,13 +36,11 @@ public class S3Service {
 
     public PresignedUrlResponse createPutPresignedUrl(
             String key,
-            String contentType,
             Duration expiration
     ) {
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(s3Properties.getBucket())
                 .key(key)
-                .contentType(contentType)
                 .build();
 
         PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()

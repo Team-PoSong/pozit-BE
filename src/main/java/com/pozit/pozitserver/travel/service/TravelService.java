@@ -74,7 +74,6 @@ public class TravelService {
     private static final Duration BACKGROUND_IMAGE_GET_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final Duration POZING_GET_URL_EXPIRATION = Duration.ofMinutes(10);
     private static final Duration THUMBNAIL_GET_URL_EXPIRATION = Duration.ofMinutes(10);
-    private static final String BACKGROUND_IMAGE_CONTENT_TYPE = "image/jpeg";
     private static final ZoneId STATUS_ZONE = ZoneId.of("Asia/Seoul");
 
     private final TravelRepository travelRepository;
@@ -933,7 +932,6 @@ public class TravelService {
 
         return s3Service.createPutPresignedUrl(
                 key,
-                BACKGROUND_IMAGE_CONTENT_TYPE,
                 BACKGROUND_IMAGE_PRESIGNED_URL_EXPIRATION
         );
     }
