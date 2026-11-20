@@ -22,7 +22,7 @@ public class AuthRequestLoggingFilter extends OncePerRequestFilter {
 
     private static final Set<String> AUTH_PATHS = Set.of(
             "/api/auth/kakao", "/api/auth/kakao/callback", "/api/auth/kakao/native",
-            "/api/auth/apple", "/api/auth/apple/callback", "/api/auth/reissue",
+            "/api/auth/apple", "/api/auth/apple/callback", "/api/auth/google", "/api/auth/reissue",
             "/api/auth/logout"
     );
 

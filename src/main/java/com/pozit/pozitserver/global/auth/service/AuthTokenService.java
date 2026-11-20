@@ -62,6 +62,7 @@ public class AuthTokenService {
     ) {
         Long userId = validateStoredRefreshToken(refreshToken);
         User user = userRepository.findById(userId)
+                .filter(account -> !account.isDeleted())
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMON401));
 
         return issueLoginTokens(user, false);

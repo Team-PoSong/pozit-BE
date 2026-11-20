@@ -6,7 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(description = "회원 탈퇴 요청")
 public record UserWithdrawalRequest(
         @Schema(
-                description = "Apple 회원 탈퇴 시 필수입니다. 탈퇴 직전 앱에서 Apple 재인증을 수행하고 받은 authorizationCode를 전달합니다. 카카오 회원은 전달하지 않습니다.",
+                description = "Apple 회원 탈퇴 시 필수입니다. 탈퇴 직전 앱에서 Apple 재인증을 수행하고 받은 authorizationCode를 전달합니다.",
                 example = "c1234567890..."
         )
         String appleAuthorizationCode,

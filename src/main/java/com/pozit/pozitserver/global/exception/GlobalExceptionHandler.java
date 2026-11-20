@@ -9,6 +9,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -57,6 +58,12 @@ public class GlobalExceptionHandler {
                         "입력값 검증에 실패했습니다.",
                         errors
                 ));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableRequest() {
+        return ResponseEntity.badRequest()
+                .body(ErrorResponse.of(ErrorCode.COMMON400.getCode(), ErrorCode.COMMON400.getMessage()));
     }
 
     @ExceptionHandler(OptimisticLockingFailureException.class)
