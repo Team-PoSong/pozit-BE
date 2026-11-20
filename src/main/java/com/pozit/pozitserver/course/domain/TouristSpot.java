@@ -29,17 +29,11 @@ public class TouristSpot {
     @Column(nullable = false)
     private String name;
 
-//    @Column(name = "area_code", length = 30)
-//    private String areaCode;
-
     @Column(name = "legal_dong_region_code", length = 10)
     private String legalDongRegionCode;
 
     @Column(name = "legal_dong_sigungu_code", length = 10)
     private String legalDongSigunguCode;
-
-//    @Column(name = "sigungu_code", length = 30)
-//    private String sigunguCode;
 
     @Column(length = 500)
     private String address;
