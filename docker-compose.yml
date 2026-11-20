@@ -3,6 +3,7 @@ services:
   nginx:
     image: nginx:1.25-alpine
     container_name: pozit-nginx
+    restart: always
     ports:
       - "80:80"
       - "443:443"
@@ -19,9 +20,10 @@ services:
   server:
     image: "${DOCKER_CONTAINER_REGISTRY}/pozit:${GITHUB_SHA}"
     container_name: pozit-server
+    restart: always
     environment:
       TZ: Asia/Seoul
-      JAVA_TOOL_OPTIONS: "-Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false"
+      JAVA_TOOL_OPTIONS: "-Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false -XX:+ExitOnOutOfMemoryError"
       POZING_EDIT_MAP_SCREENSHOT_ENABLED: "true"
       POZING_EDIT_MAP_SCREENSHOT_BASE_URL: "https://api.pozit.kr"
       POZING_EDIT_MAP_SCREENSHOT_CHROME_PATH: "/usr/bin/google-chrome"
@@ -49,6 +51,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
     networks:
       - pozit-network
     expose:
