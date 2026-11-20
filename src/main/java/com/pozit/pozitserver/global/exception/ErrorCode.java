@@ -17,6 +17,9 @@ public enum ErrorCode {
 
     // Auth
     KAKAO_INVALID_ACCESS_TOKEN(HttpStatus.UNAUTHORIZED, "KAKAO401", "유효하지 않은 카카오 액세스 토큰입니다."),
+    GOOGLE_INVALID_ID_TOKEN(HttpStatus.UNAUTHORIZED, "GOOGLE401", "유효하지 않은 구글 ID 토큰입니다."),
+    GOOGLE_CLIENT_ID_MISSING(HttpStatus.INTERNAL_SERVER_ERROR, "GOOGLE500", "구글 서버 클라이언트 ID 설정이 누락되었습니다."),
+    GOOGLE_TOKEN_VERIFICATION_FAILED(HttpStatus.BAD_GATEWAY, "GOOGLE502", "구글 ID 토큰 검증 서비스에 연결할 수 없습니다."),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH401_1", "유효하지 않은 Refresh Token입니다."),
 
     // Travel
