@@ -29,6 +29,7 @@ out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 **/recommendation-system.md
+/docs/google-login-api.md
 
 ### NetBeans ###
 /nbproject/private/

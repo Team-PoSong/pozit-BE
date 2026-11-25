@@ -162,7 +162,7 @@ public class UserController {
     @DeleteMapping("/me")
     @Operation(
             summary = "회원 탈퇴",
-            description = "현재 로그인한 사용자의 계정을 탈퇴 처리합니다. Apple 회원은 탈퇴 직전 앱에서 Apple 재인증을 수행한 뒤 받은 authorizationCode와 platform을 전달해야 하며, 서버가 Apple revoke API로 Sign in with Apple 연동을 해제합니다. 카카오 회원은 요청 body 없이 호출할 수 있습니다. 좋아요, 피드백, 포징 영상 정보는 삭제하고, 공유 여행 이력 보호를 위해 사용자 레코드는 삭제하지 않고 비식별화합니다. Redis에 저장된 모든 기기의 Refresh Token도 함께 삭제됩니다."
+            description = "현재 로그인한 사용자의 계정을 탈퇴 처리합니다. Apple 회원은 탈퇴 직전 앱에서 Apple 재인증을 수행한 뒤 받은 authorizationCode와 platform을 전달해야 하며, 서버가 Apple revoke API로 Sign in with Apple 연동을 해제합니다. 카카오와 구글 회원은 요청 body 없이 호출할 수 있습니다. 좋아요, 피드백, 포징 영상 정보는 삭제하고, 공유 여행 이력 보호를 위해 사용자 레코드는 비식별화합니다. Redis에 저장된 모든 기기의 Refresh Token도 함께 삭제됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "탈퇴 성공"),
