@@ -1,5 +1,6 @@
 package com.pozit.pozitserver.global.auth.controller;
 
+import com.pozit.pozitserver.global.auth.dto.request.GoogleIdTokenRequest;
 import com.pozit.pozitserver.global.auth.dto.request.KakaoAccessTokenRequest;
 import com.pozit.pozitserver.global.auth.dto.request.TokenReissueRequest;
 import com.pozit.pozitserver.global.auth.dto.response.LoginTokenResponse;
@@ -7,6 +8,7 @@ import com.pozit.pozitserver.global.auth.annotation.CurrentUser;
 import com.pozit.pozitserver.global.auth.ios.AppleIdentityTokenRequest;
 import com.pozit.pozitserver.global.auth.kakao.KakaoProperties;
 import com.pozit.pozitserver.global.auth.service.AuthAppleService;
+import com.pozit.pozitserver.global.auth.service.AuthGoogleService;
 import com.pozit.pozitserver.global.auth.service.AuthKakaoService;
 import com.pozit.pozitserver.global.auth.service.AuthTokenService;
 import com.pozit.pozitserver.global.response.ErrorResponse;
@@ -43,6 +45,7 @@ public class AuthController {
     private final KakaoProperties kakaoProperties;
     private final AuthKakaoService authService;
     private final AuthAppleService authAppleService;
+    private final AuthGoogleService authGoogleService;
     private final AuthTokenService authTokenService;
 
     @GetMapping("/kakao")
@@ -102,6 +105,20 @@ public class AuthController {
         LoginTokenResponse response =
                 authService.loginWithKakaoAccessToken(request.accessToken());
         return SuccessResponse.ok(response);
+    }
+
+    @PostMapping("/google")
+    @Operation(
+            summary = "구글 네이티브 앱 로그인",
+            description = "Google ID 토큰을 검증한 후 회원을 조회하거나 가입시키고 POZIT JWT를 발급합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "로그인 성공 및 POZIT JWT 발급"),
+            @ApiResponse(responseCode = "400", description = "idToken 누락 또는 빈 값"),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 구글 ID 토큰")
+    })
+    public SuccessResponse<LoginTokenResponse> googleLogin(@Valid @RequestBody GoogleIdTokenRequest request) {
+        return SuccessResponse.ok(authGoogleService.loginWithGoogle(request.idToken()));
     }
 
     @Operation(
